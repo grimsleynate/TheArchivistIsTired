@@ -14,10 +14,10 @@ graphic_dt = np.dtype(
 # Tile struct used for statically defined tile data.
 tile_dt = np.dtype(
     [
-        ("walkable", np.bool),  # True if this tile can be walked over.
-        ("transparent", np.bool),  # True if this tile doesn't block FOV.
+        ("walkable", bool),  # True if this tile can be walked over.
+        ("transparent", bool),  # True if this tile doesn't block FOV.
         ("dark", graphic_dt),  # Graphics for when this tile is not in FOV.
-        ("light", graphic_dt), # Graphics for when the tile is in FOV.
+        ("light", graphic_dt),  # Graphics for when the tile is in FOV.
     ]
 )
 
@@ -32,19 +32,25 @@ def new_tile(
     """Helper function for defining individual tile types """
     return np.array((walkable, transparent, dark, light), dtype=tile_dt)
 
-#SHROUD represents the unexplored, unseen tiles
+
+# SHROUD represents unexplored, unseen tiles
 SHROUD = np.array((ord(" "), (255, 255, 255), (0, 0, 0)), dtype=graphic_dt)
 
 floor = new_tile(
-    walkable=True, 
+    walkable=True,
     transparent=True,
-    dark=(ord("."), (100, 100, 100), (50, 50, 50)),
-    light=(ord("."), (250, 250, 150), (115, 115, 100)),
-    
+    dark=(ord(" "), (255, 255, 255), (50, 50, 150)),
+    light=(ord(" "), (255, 255, 255), (200, 180, 50)),
 )
 wall = new_tile(
-    walkable=False, 
+    walkable=False,
     transparent=False,
-    dark=(ord("#"), (0, 0, 100), (0, 0, 50)),
-    light=(ord("#"), (50, 50, 150), (50, 50, 100)),
+    dark=(ord(" "), (255, 255, 255), (0, 0, 100)),
+    light=(ord(" "), (255, 255, 255), (130, 110, 50)),
+)
+down_stairs = new_tile(
+    walkable=True,
+    transparent=True,
+    dark=(ord(">"), (0, 0, 100), (50, 50, 150)),
+    light=(ord(">"), (255, 255, 255), (200, 180, 50)),
 )
