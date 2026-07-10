@@ -2,12 +2,14 @@
 import traceback
 
 import tcod
+import pygame
 
 import color
 import exceptions
 import setup_game
 import input_handlers
 
+from rendering.tileset_manager import TileSetManager
 
 def save_game(handler: input_handlers.BaseEventHandler, filename: str) -> None:
     """If the current event handler has an active Engine then save it."""
@@ -17,8 +19,8 @@ def save_game(handler: input_handlers.BaseEventHandler, filename: str) -> None:
 
 
 def main() -> None:
-    screen_width = 80
-    screen_height = 50
+    screen_width = 160
+    screen_height = 100
 
     tileset = tcod.tileset.load_tilesheet(
         "dejavu10x10_gs_tc.png", 32, 8, tcod.tileset.CHARMAP_TCOD
@@ -30,7 +32,8 @@ def main() -> None:
         screen_width,
         screen_height,
         tileset=tileset,
-        title="Yet Another Roguelike Tutorial",
+        title="The Archivist Is Tired",
+        sdl_window_flags = 1,
         vsync=True,
     ) as context:
         root_console = tcod.Console(screen_width, screen_height, order="F")
