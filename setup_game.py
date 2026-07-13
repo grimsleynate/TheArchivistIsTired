@@ -7,6 +7,7 @@ import pickle
 import traceback
 from typing import Optional
 
+from map_loader import load_map
 import tcod
 
 import color
@@ -33,16 +34,20 @@ def new_game() -> Engine:
 
     engine = Engine(player=player)
 
+    txt_path = "maps/test_dungeon.txt"
+    json_path = "maps/test_dungeon.json"
+
+    engine.game_map = load_map(engine, txt_path, json_path)
     engine.game_world = GameWorld(
         engine=engine,
-        max_rooms=max_rooms,
-        room_min_size=room_min_size,
-        room_max_size=room_max_size,
-        map_width=map_width,
-        map_height=map_height,
+        max_rooms=0,  # not used for overworld
+        room_min_size=0,
+        room_max_size=0,
+        map_width=engine.game_map.width,
+        map_height=engine.game_map.height,
     )
 
-    engine.game_world.generate_floor()
+    #engine.game_world.generate_floor()
     engine.update_fov()
 
     engine.message_log.add_message(

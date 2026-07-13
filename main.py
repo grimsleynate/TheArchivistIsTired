@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import traceback
 
-import tcod
+import tcod #type: ignore
 
 import color
 import exceptions
@@ -21,7 +21,7 @@ def main() -> None:
     screen_height = 50
 
     tileset = tcod.tileset.load_tilesheet(
-        "dejavu10x10_gs_tc.png", 32, 8, tcod.tileset.CHARMAP_TCOD
+        "Curses_square_24.png", 16, 16, tcod.tileset.CHARMAP_CP437
     )
 
     handler: input_handlers.BaseEventHandler = setup_game.MainMenu()
@@ -30,7 +30,8 @@ def main() -> None:
         screen_width,
         screen_height,
         tileset=tileset,
-        title="Yet Another Roguelike Tutorial",
+        sdl_window_flags=1,
+        title="The Archivist Is Tired",
         vsync=True,
     ) as context:
         root_console = tcod.Console(screen_width, screen_height, order="F")

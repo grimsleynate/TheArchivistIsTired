@@ -50,8 +50,19 @@ class Entity:
             parent.entities.add(self)
 
     @property
-    def gamemap(self) -> GameMap:
-        return self.parent.gamemap
+    def gamemap(self) -> Optional["GameMap"]:
+        """Return the GameMap this entity belongs to, if any."""
+        if self.parent is None:
+            return None
+        # If parent is a GameMap, return it directly
+        from game_map import GameMap
+        if isinstance(self.parent, GameMap):
+            return self.parent
+        # If parent is something like Inventory, delegate
+        if hasattr(self.parent, "gamemap"):
+            return self.parent.gamemap
+        return None
+
 
     def spawn(self: T, gamemap: GameMap, x: int, y: int) -> T:
         """Spawn a copy of this instance at the given location."""

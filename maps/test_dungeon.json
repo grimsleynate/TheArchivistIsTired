@@ -1,0 +1,23 @@
+{
+  "name": "test",
+  "biome": "test",
+  "item_pools": [
+    {
+      "pool_id": "common_item",
+      "count": 5
+    },
+    {
+      "pool_id": "uncommon_item",
+      "count": 2
+    }
+  ],
+  "items": [
+    {"id": "fireball_scroll", "x": 12, "y": 8}
+  ],
+  "monster_pools": [
+    {
+      "pool_id": "test_monsters",
+      "count": 3
+    }
+  ]
+}

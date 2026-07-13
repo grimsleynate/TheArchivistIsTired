@@ -73,28 +73,43 @@ class GameMap:
         return 0 <= x < self.width and 0 <= y < self.height
 
     def render(self, console: Console) -> None:
-        """
-        Renders the map.
+    # Camera centered on player
+        cam_x = max(0, self.engine.player.x - console.width // 2)
+        cam_y = max(0, self.engine.player.y - console.height // 2)
 
-        If a tile is in the "visible" array, then draw it with the "light" colors.
-        If it isn't, but it's in the "explored" array, then draw it with the "dark" colors.
-        Otherwise, the default is "SHROUD".
-        """
-        console.tiles_rgb[0 : self.width, 0 : self.height] = np.select(
-            condlist=[self.visible, self.explored],
-            choicelist=[self.tiles["light"], self.tiles["dark"]],
+        # Clamp so we don’t go past map edges
+        cam_x = min(cam_x, max(0, self.width - console.width))
+        cam_y = min(cam_y, max(0, self.height - console.height))
+
+        # Compute viewport size
+        view_w = min(console.width, self.width)
+        view_h = min(console.height, self.height)
+
+        # Slice arrays
+        visible_slice = self.visible[cam_x:cam_x+view_w, cam_y:cam_y+view_h]
+        explored_slice = self.explored[cam_x:cam_x+view_w, cam_y:cam_y+view_h]
+
+        tile_slice = np.select(
+            condlist=[visible_slice, explored_slice],
+            choicelist=[self.tiles["light"][cam_x:cam_x+view_w, cam_y:cam_y+view_h],
+                        self.tiles["dark"][cam_x:cam_x+view_w, cam_y:cam_y+view_h]],
             default=tile_types.SHROUD,
         )
 
-        entities_sorted_for_rendering = sorted(
-            self.entities, key=lambda x: x.render_order.value
-        )
+        # Blit into console (top-left aligned)
+        console.tiles_rgb[0:view_w, 0:view_h] = tile_slice
 
-        for entity in entities_sorted_for_rendering:
+        # Render entities in viewport
+        for entity in sorted(self.entities, key=lambda x: x.render_order.value):
             if self.visible[entity.x, entity.y]:
-                console.print(
-                    x=entity.x, y=entity.y, string=entity.char, fg=entity.color
-                )
+                if cam_x <= entity.x < cam_x + view_w and cam_y <= entity.y < cam_y + view_h:
+                    console.print(
+                        x=entity.x - cam_x,
+                        y=entity.y - cam_y,
+                        string=entity.char,
+                        fg=entity.color,
+                    )
+
 
 
 class GameWorld:

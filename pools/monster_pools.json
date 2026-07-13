@@ -1,0 +1,6 @@
+{
+  "test_monsters": [
+    {"id": "orc", "weight": 80},
+    {"id": "troll", "weight": 20}
+  ]
+}

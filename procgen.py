@@ -133,7 +133,6 @@ def place_entities(room: RectangularRoom, dungeon: GameMap, floor_number: int,) 
         if not any(entity.x == x and entity.y == y for entity in dungeon.entities):
             entity.spawn(dungeon, x, y)
 
-
 def tunnel_between(
     start: Tuple[int, int], end: Tuple[int, int]
 ) -> Iterator[Tuple[int, int]]:
@@ -191,6 +190,11 @@ def generate_dungeon(
         if len(rooms) == 0:
             # The first room, where the player starts.
             player.place(*new_room.center, dungeon)
+            """THIS IS ALL FOR TESTING"""
+            cx, cy = new_room.center
+            entity_factories.fireball_scroll.spawn(dungeon, cx, cy)
+            entity_factories.confusion_scroll.spawn(dungeon, cx - 1, cy + 1)
+            
         else:  # All rooms after the first.
             # Dig out a tunnel between this room and the previous one.
             for x, y in tunnel_between(rooms[-1].center, new_room.center):

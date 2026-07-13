@@ -74,7 +74,7 @@ class ConfusionConsumable(Consumable):
         self.consume()
 
 
-class FireballDamageConsumable(Consumable):
+class AreaOfEffectDamageConsumable(Consumable):
     def __init__(self, damage: int, radius: int):
         self.damage = damage
         self.radius = radius

@@ -6,10 +6,12 @@ from components.inventory import Inventory
 from components.level import Level
 from entity import Actor, Item
 
+import color
+
 
 player = Actor(
     char="@",
-    color=(255, 255, 255),
+    color=color.player_color,
     name="Player",
     ai_cls=HostileEnemy,
     equipment=Equipment(),
@@ -20,7 +22,7 @@ player = Actor(
 
 orc = Actor(
     char="o",
-    color=(63, 127, 63),
+    color=color.common_enemy_color,
     name="Orc",
     ai_cls=HostileEnemy,
     equipment=Equipment(),
@@ -30,7 +32,7 @@ orc = Actor(
 )
 troll = Actor(
     char="T",
-    color=(0, 127, 0),
+    color=color.uncommon_enemy_color,
     name="Troll",
     ai_cls=HostileEnemy,
     equipment=Equipment(),
@@ -41,42 +43,47 @@ troll = Actor(
 
 confusion_scroll = Item(
     char="~",
-    color=(207, 63, 255),
+    color=color.common_scroll_color,
     name="Confusion Scroll",
     consumable=consumable.ConfusionConsumable(number_of_turns=10),
 )
 fireball_scroll = Item(
     char="~",
-    color=(255, 0, 0),
+    color=color.common_scroll_color,
     name="Fireball Scroll",
-    consumable=consumable.FireballDamageConsumable(damage=12, radius=3),
+    consumable=consumable.AreaOfEffectDamageConsumable(damage=12, radius=3),
 )
 health_potion = Item(
-    char="!",
-    color=(127, 0, 255),
+    char="¿",
+    color=color.common_potion_color,
     name="Health Potion",
     consumable=consumable.HealingConsumable(amount=4),
 )
 lightning_scroll = Item(
     char="~",
-    color=(255, 255, 0),
+    color=color.common_scroll_color,
     name="Lightning Scroll",
     consumable=consumable.LightningDamageConsumable(damage=20, maximum_range=5),
 )
 
 dagger = Item(
-    char="/", color=(0, 191, 255), name="Dagger", equippable=equippable.Dagger()
+    char="/", color=color.common_equip_color, name="Dagger", equippable=equippable.Dagger()
 )
+sword = Item(char="/", color=color.common_equip_color, name="Sword", equippable=equippable.Sword())
 
-sword = Item(char="/", color=(0, 191, 255), name="Sword", equippable=equippable.Sword())
+queens_staff = Item(
+    char=chr(0x2320),
+    color=color.rare_equip_color,
+    name="The Queen's Scepter",
+    
+)
 
 leather_armor = Item(
     char="[",
-    color=(139, 69, 19),
+    color=color.common_equip_color,
     name="Leather Armor",
     equippable=equippable.LeatherArmor(),
 )
-
 chain_mail = Item(
-    char="[", color=(139, 69, 19), name="Chain Mail", equippable=equippable.ChainMail()
+    char="[", color=color.common_equip_color, name="Chain Mail", equippable=equippable.ChainMail()
 )
