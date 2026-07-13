@@ -622,7 +622,7 @@ class HistoryViewer(EventHandler):
                 self.cursor = 0
             else:
                 # Otherwise move while staying clamped to the bounds of the history log.
-                self.cursor = max(0, min(self.cursor + adjust, self.log_length - 1))
+                self.cursor = max(0, min(self.cursor + adjust, self.log_length - 1)) 
         elif event.sym == tcod.event.K_HOME:
             self.cursor = 0  # Move directly to the top message.
         elif event.sym == tcod.event.K_END:

@@ -8,8 +8,6 @@ import exceptions
 import setup_game
 import input_handlers
 
-from rendering.tileset_manager import TileSetManager
-
 def save_game(handler: input_handlers.BaseEventHandler, filename: str) -> None:
     """If the current event handler has an active Engine then save it."""
     if isinstance(handler, input_handlers.EventHandler):
@@ -18,8 +16,8 @@ def save_game(handler: input_handlers.BaseEventHandler, filename: str) -> None:
 
 
 def main() -> None:
-    screen_width = 160
-    screen_height = 100
+    screen_width = 80
+    screen_height = 50
 
     tileset = tcod.tileset.load_tilesheet(
         "Curses_square_24.png", 16, 16, tcod.tileset.CHARMAP_CP437

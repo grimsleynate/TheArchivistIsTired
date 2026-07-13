@@ -10,6 +10,34 @@ import tile_types
 import entity_factories
 from procgen import generate_dungeon  # your file
 
+def bg(r, g, b):
+    return f"\x1b[48;2;{r};{g};{b}m"
+
+RESET = "\x1b[0m"
+
+COLORS = {
+    "wall": bg(60, 60, 90),         # dark bluish
+    "floor": bg(120, 120, 140),     # muted gray
+    "door": bg(180, 140, 60),       # warm brown (future use)
+    "stairs": bg(255, 255, 120),    # bright yellow
+
+    "monster": bg(255, 80, 80),     # red
+    "item": bg(80, 255, 80),        # green
+    "player": bg(80, 200, 255),     # cyan
+}
+
+def print_legend():
+    print("LEGEND:")
+    print(COLORS["wall"]   + "  " + RESET + " = Wall")
+    print(COLORS["floor"]  + "  " + RESET + " = Floor")
+    print(COLORS["door"]   + "  " + RESET + " = Door")
+    print(COLORS["stairs"] + "  " + RESET + " = Down Stairs")
+    print(COLORS["monster"]+ "  " + RESET + " = Monster")
+    print(COLORS["item"]   + "  " + RESET + " = Item")
+    print(COLORS["player"] + "  " + RESET + " = Player")
+    print()
+
+
 # --- ASCII conversion helpers ---
 
 def tile_to_char(tile):
@@ -22,6 +50,8 @@ def tile_to_char(tile):
     return "?"
 
 def print_dungeon(dungeon: GameMap):
+    print_legend()
+
     lines = []
     for y in range(dungeon.height):
         row = ""
@@ -35,13 +65,36 @@ def print_dungeon(dungeon: GameMap):
                     break
 
             if entity_here:
-                row += entity_here.char
+                # Player
+                if entity_here is dungeon.engine.player:
+                    row += COLORS["player"] + "  " + RESET
+                    continue
+
+                # Monster (Actor)
+                if hasattr(entity_here, "fighter"):
+                    row += COLORS["monster"] + "  " + RESET
+                    continue
+
+                # Item
+                row += COLORS["item"] + "  " + RESET
+                continue
+
+            # Tiles
+            tile = dungeon.tiles[x, y]
+
+            if tile == tile_types.wall:
+                row += COLORS["wall"] + "  " + RESET
+            elif tile == tile_types.floor:
+                row += COLORS["floor"] + "  " + RESET
+            elif tile == tile_types.down_stairs:
+                row += COLORS["stairs"] + "  " + RESET
             else:
-                row += tile_to_char(dungeon.tiles[x, y])
+                row += bg(0, 0, 0) + "  " + RESET  # unknown tile
 
         lines.append(row)
 
     print("\n".join(lines))
+
 
 
 # --- Fake engine for testing ---
@@ -56,7 +109,7 @@ class DummyEngine(Engine):
 def main():
     engine = DummyEngine()
 
-    for i in range(20):
+    for i in range(15):
         print(f"\n=== DUNGEON {i+1} ===\n")
         dungeon = generate_dungeon(
             max_rooms=30,
