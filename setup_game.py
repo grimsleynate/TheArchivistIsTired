@@ -8,12 +8,13 @@ import traceback
 from typing import Optional
 
 from map_loader import load_map
-import tcod
+import tcod #type: ignore
 
 import color
 from engine import Engine
 import entity_factories
 from game_map import GameWorld
+from procgen import generate_dungeon, generate_cave_dungeon
 import input_handlers
 
 
@@ -34,6 +35,7 @@ def new_game() -> Engine:
 
     engine = Engine(player=player)
 
+    """Generating a custom dungeon from txt_path, filled in with entities defined at json_path"""
     txt_path = "maps/test_dungeon.txt"
     json_path = "maps/test_dungeon.json"
 
@@ -46,8 +48,19 @@ def new_game() -> Engine:
         map_width=engine.game_map.width,
         map_height=engine.game_map.height,
     )
-
-    #engine.game_world.generate_floor()
+    
+    """Generating a ProcGen dungeon"""
+    # engine.game_world = GameWorld(
+        
+    #     engine=engine,
+    #     max_rooms=max_rooms,
+    #     room_min_size=room_min_size,
+    #     room_max_size=room_max_size,
+    #     map_width=map_width,
+    #     map_height=map_height,
+    # )
+    # engine.game_world.generate_floor()
+    
     engine.update_fov()
 
     engine.message_log.add_message(
@@ -56,6 +69,14 @@ def new_game() -> Engine:
 
     dagger = copy.deepcopy(entity_factories.dagger)
     leather_armor = copy.deepcopy(entity_factories.leather_armor)
+    health_potion1 = copy.deepcopy(entity_factories.health_potion)
+    health_potion2 = copy.deepcopy(entity_factories.health_potion)
+    health_potion3 = copy.deepcopy(entity_factories.health_potion)
+    
+    player.inventory.items.append(health_potion1)
+    player.inventory.items.append(health_potion2)
+    player.inventory.items.append(health_potion3)
+    
 
     dagger.parent = player.inventory
     leather_armor.parent = player.inventory

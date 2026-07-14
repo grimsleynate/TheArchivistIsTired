@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from components.inventory import Inventory
     from components.level import Level
     from game_map import GameMap
+    from entity import Item
 
 T = TypeVar("T", bound="Entity")
 
@@ -34,6 +35,7 @@ class Entity:
         char: str = "?",
         color: Tuple[int, int, int] = (255, 255, 255),
         name: str = "<Unnamed>",
+        max_stack: int = 1,
         blocks_movement: bool = False,
         render_order: RenderOrder = RenderOrder.CORPSE,
     ):
@@ -44,6 +46,8 @@ class Entity:
         self.name = name
         self.blocks_movement = blocks_movement
         self.render_order = render_order
+        self.max_stack = 1
+        self.stack_size = 1
         if parent:
             # If parent isn't provided now then it will be set later.
             self.parent = parent
@@ -71,6 +75,10 @@ class Entity:
         clone.y = y
         clone.parent = gamemap
         gamemap.entities.add(clone)
+        
+        if isinstance(clone, Item):
+            gamemap.add_item(clone, x, y)
+            
         return clone
 
     def place(self, x: int, y: int, gamemap: Optional[GameMap] = None) -> None:
@@ -80,7 +88,7 @@ class Entity:
         if gamemap:
             if hasattr(self, "parent"):  # Possibly uninitialized.
                 if self.parent is self.gamemap:
-                    self.gamemap.entities.remove(self)
+                    self.gamemap.entities.remove(self) #type: ignore
             self.parent = gamemap
             gamemap.entities.add(self)
 
@@ -105,6 +113,7 @@ class Actor(Entity):
         char: str = "?",
         color: Tuple[int, int, int] = (255, 255, 255),
         name: str = "<Unnamed>",
+        max_stack: int = 1,
         ai_cls: Type[BaseAI],
         equipment: Equipment,
         fighter: Fighter,
@@ -117,6 +126,7 @@ class Actor(Entity):
             char=char,
             color=color,
             name=name,
+            max_stack=max_stack,
             blocks_movement=True,
             render_order=RenderOrder.ACTOR,
         )
@@ -150,6 +160,7 @@ class Item(Entity):
         char: str = "?",
         color: Tuple[int, int, int] = (255, 255, 255),
         name: str = "<Unnamed>",
+        max_stack: int = 1,
         consumable: Optional[Consumable] = None,
         equippable: Optional[Equippable] = None,
     ):
@@ -159,6 +170,7 @@ class Item(Entity):
             char=char,
             color=color,
             name=name,
+            max_stack=max_stack,
             blocks_movement=False,
             render_order=RenderOrder.ITEM,
         )

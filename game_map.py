@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from typing import Iterable, Iterator, Optional, TYPE_CHECKING
+from typing import Iterable, Iterator, Optional, TYPE_CHECKING, Dict, Tuple, List
 
 import numpy as np  # type: ignore
-from tcod.console import Console
+from tcod.console import Console #type: ignore
 
 from entity import Actor, Item
 import tile_types
@@ -20,6 +20,7 @@ class GameMap:
         self.engine = engine
         self.width, self.height = width, height
         self.entities = set(entities)
+        self.items_at_location: Dict[Tuple[int, int], List[Entity]] = {}
         self.tiles = np.full((width, height), fill_value=tile_types.wall, order="F")
 
         self.visible = np.full(
@@ -28,8 +29,6 @@ class GameMap:
         self.explored = np.full(
             (width, height), fill_value=False, order="F"
         )  # Tiles the player has seen before
-
-        self.downstairs_location = (0, 0)
 
     @property
     def gamemap(self) -> GameMap:
@@ -60,6 +59,19 @@ class GameMap:
                 return entity
 
         return None
+    
+    def get_items_at(self, x: int, y: int) -> List[Entity]:
+        return self.items_at_location.get((x, y), [])
+
+    def add_item(self, item: Entity, x: int, y: int) -> None:
+        self.items_at_location.setdefault((x, y), []).append(item)
+
+    def remove_item(self, item: Entity, x: int, y: int) -> None:
+        if (x, y) in self.items_at_location:
+            self.items_at_location[(x, y)].remove(item)
+            if not self.items_at_location[(x, y)]:
+                del self.items_at_location[(x, y)]
+
 
     def get_actor_at_location(self, x: int, y: int) -> Optional[Actor]:
         for actor in self.actors:
@@ -101,15 +113,48 @@ class GameMap:
 
         # Render entities in viewport
         for entity in sorted(self.entities, key=lambda x: x.render_order.value):
-            if self.visible[entity.x, entity.y]:
-                if cam_x <= entity.x < cam_x + view_w and cam_y <= entity.y < cam_y + view_h:
-                    console.print(
-                        x=entity.x - cam_x,
-                        y=entity.y - cam_y,
-                        string=entity.char,
-                        fg=entity.color,
-                    )
+            ex, ey = entity.x, entity.y
 
+            # Skip entities outside visibility or viewport
+            if not self.visible[ex, ey]:
+                continue
+            if not (cam_x <= ex < cam_x + view_w and cam_y <= ey < cam_y + view_h):
+                continue
+
+            # --- MULTI-ITEM TILE OVERRIDE ---
+            items_here = self.get_items_at(ex, ey)
+
+            # If this tile has multiple items, draw the special glyph ONCE
+            if len(items_here) > 1:
+                console.print(
+                    x=ex - cam_x,
+                    y=ey - cam_y,
+                    string="‼",
+                    fg=(80, 255, 80),
+                    bg=(120, 120, 140),
+                )
+                # Skip drawing item entities on this tile
+                if isinstance(entity, Item):
+                    continue
+
+            # If this tile has exactly one item, draw that item instead of the entity
+            elif len(items_here) == 1 and isinstance(entity, Item):
+                item = items_here[0]
+                console.print(
+                    x=ex - cam_x,
+                    y=ey - cam_y,
+                    string=item.char,
+                    fg=item.color,
+                )
+                continue
+
+            # --- DEFAULT ENTITY RENDERING ---
+            console.print(
+                x=ex - cam_x,
+                y=ey - cam_y,
+                string=entity.char,
+                fg=entity.color,
+            )
 
 
 class GameWorld:
@@ -141,14 +186,11 @@ class GameWorld:
         self.current_floor = current_floor
 
     def generate_floor(self) -> None:
-        from procgen import generate_dungeon
-
+        from procgen import generate_dungeon, generate_cave_dungeon
+        
         self.current_floor += 1
 
-        self.engine.game_map = generate_dungeon(
-            max_rooms=self.max_rooms,
-            room_min_size=self.room_min_size,
-            room_max_size=self.room_max_size,
+        self.engine.game_map = generate_cave_dungeon(
             map_width=self.map_width,
             map_height=self.map_height,
             engine=self.engine,

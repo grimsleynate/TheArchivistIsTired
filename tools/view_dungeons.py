@@ -1,14 +1,14 @@
 import sys, os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import tcod
+import tcod #type: random
 import random
 
 from engine import Engine
 from game_map import GameMap
 import tile_types
 import entity_factories
-from procgen import generate_dungeon  # your file
+from procgen import generate_cave_dungeon
 
 def bg(r, g, b):
     return f"\x1b[48;2;{r};{g};{b}m"
@@ -102,19 +102,16 @@ class DummyEngine(Engine):
     def __init__(self):
         # Create a fake player entity
         self.player = entity_factories.player
-        self.game_world = type("GW", (), {"current_floor": 1})
+        self.game_world = type("GW", (), {"current_floor": 1}) #type: ignore
 
 
 # --- Main test harness ---
 def main():
     engine = DummyEngine()
 
-    for i in range(15):
+    for i in range(20):
         print(f"\n=== DUNGEON {i+1} ===\n")
-        dungeon = generate_dungeon(
-            max_rooms=30,
-            room_min_size=6,
-            room_max_size=10,
+        dungeon = generate_cave_dungeon(
             map_width=80,
             map_height=45,
             engine=engine

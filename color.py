@@ -28,20 +28,20 @@ menu_title = (255, 255, 63)
 menu_text = white
 
 """Glyph Colors"""
-player_color         = (0, 180, 255)
+player_color         = (80, 200, 255)
 
-common_enemy_color   = (255, 50, 50)
-uncommon_enemy_color = (200, 40, 255)
+common_enemy_color   = (255, 160, 160)
+uncommon_enemy_color = (255, 80, 80)
 
-common_scroll_color  = (220, 140, 255)
+common_scroll_color  = (80, 255, 80)
 
-common_potion_color  = (255, 0, 180)
+common_potion_color  = (80, 255, 80)
 
-common_equip_color   = (120, 200, 255)
+common_equip_color   = (80, 255, 80)
 rare_equip_color = (140, 0, 180)
 
 shroud_color = (0, 0, 0)
-floor_colors = [(50, 50, 110), (130, 130, 200)]
-wall_colors = [(90, 40, 20), (220, 120, 60)]
-down_stairs_colors_dark = [(0, 180, 60), (50, 50, 110)]
-down_stairs_colors_light = [(0, 255, 100), (130, 130, 200)]
+floor_colors = [(40, 40, 50), (120, 120, 140)]
+wall_colors = [(30, 30, 40), (60, 60, 90)]
+down_stairs_colors_dark = [(80, 80, 40), (40, 40, 50)]
+down_stairs_colors_light = [(255, 255, 120), (120, 120, 140)]

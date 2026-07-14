@@ -46,36 +46,50 @@ confusion_scroll = Item(
     color=color.common_scroll_color,
     name="Confusion Scroll",
     consumable=consumable.ConfusionConsumable(number_of_turns=10),
+    max_stack=99,
 )
 fireball_scroll = Item(
     char="~",
     color=color.common_scroll_color,
     name="Fireball Scroll",
     consumable=consumable.AreaOfEffectDamageConsumable(damage=12, radius=3),
-)
-health_potion = Item(
-    char="¿",
-    color=color.common_potion_color,
-    name="Health Potion",
-    consumable=consumable.HealingConsumable(amount=4),
+    max_stack=99,
 )
 lightning_scroll = Item(
     char="~",
     color=color.common_scroll_color,
     name="Lightning Scroll",
     consumable=consumable.LightningDamageConsumable(damage=20, maximum_range=5),
+    max_stack=99,
+)
+
+health_potion = Item(
+    char="¿",
+    color=color.common_potion_color,
+    name="Health Potion",
+    consumable=consumable.HealingConsumable(amount=4),
+    max_stack=99,
 )
 
 dagger = Item(
-    char="/", color=color.common_equip_color, name="Dagger", equippable=equippable.Dagger()
+    char="/", 
+    color=color.common_equip_color, 
+    name="Dagger", 
+    equippable=equippable.Dagger(),
+    max_stack=99,
 )
-sword = Item(char="/", color=color.common_equip_color, name="Sword", equippable=equippable.Sword())
+sword = Item(
+    char="/", 
+    color=color.common_equip_color, 
+    name="Sword", 
+    equippable=equippable.Sword(),
+    max_stack=99,
+)
 
 queens_staff = Item(
     char=chr(0x2320),
     color=color.rare_equip_color,
     name="The Queen's Scepter",
-    
 )
 
 leather_armor = Item(
@@ -83,7 +97,12 @@ leather_armor = Item(
     color=color.common_equip_color,
     name="Leather Armor",
     equippable=equippable.LeatherArmor(),
+    max_stack=99,
 )
 chain_mail = Item(
-    char="[", color=color.common_equip_color, name="Chain Mail", equippable=equippable.ChainMail()
+    char="[", 
+    color=color.common_equip_color, 
+    name="Chain Mail", 
+    equippable=equippable.ChainMail(),
+    max_stack=99,
 )

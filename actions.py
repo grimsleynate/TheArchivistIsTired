@@ -39,23 +39,38 @@ class PickupAction(Action):
         super().__init__(entity)
 
     def perform(self) -> None:
-        actor_location_x = self.entity.x
-        actor_location_y = self.entity.y
+        x, y = self.entity.x, self.entity.y
         inventory = self.entity.inventory
 
-        for item in self.engine.game_map.items:
-            if actor_location_x == item.x and actor_location_y == item.y:
-                if len(inventory.items) >= inventory.capacity:
-                    raise exceptions.Impossible("Your inventory is full.")
+        items_here = self.engine.game_map.get_items_at(x, y)
 
-                self.engine.game_map.entities.remove(item)
-                item.parent = self.entity.inventory
-                inventory.items.append(item)
+        if not items_here:
+            raise exceptions.Impossible("There is nothing here to pick up.")
 
-                self.engine.message_log.add_message(f"You picked up the {item.name}!")
+        if len(items_here) > 1:
+            # Input handler should have opened a menu instead.
+            raise exceptions.Impossible("There are multiple items here.")
+
+        item = items_here[0]
+
+        if len(inventory.items) >= inventory.capacity:
+            raise exceptions.Impossible("Your inventory is full.")
+
+        # Remove from map
+        self.engine.game_map.entities.remove(item)
+        self.engine.game_map.remove_item(item, x, y)
+
+        # Add to inventory
+        item.parent = inventory
+        # Try to merge into existing stack
+        for stack in inventory.items:
+            if stack.name == item.name and stack.stack_size < stack.max_stack:
+                stack.stack_size += item.stack_size
                 return
+        # Otherwise create a new stack
+        inventory.items.append(item)
 
-        raise exceptions.Impossible("There is nothing here to pick up.")
+        self.engine.message_log.add_message(f"You picked up the {item.name}!")
 
 
 class ItemAction(Action):
@@ -82,9 +97,15 @@ class ItemAction(Action):
 class DropItem(ItemAction):
     def perform(self) -> None:
         if self.entity.equipment.item_is_equipped(self.item):
-            self.entity.equipment.toggle_equip(self.item)
-
-        self.entity.inventory.drop(self.item)
+            if self.item.stack_size > 1:
+                # Split off one item
+                new_item = copy.deepcopy(self.item)
+                new_item.stack_size = 1
+                self.item.stack_size -= 1
+                new_item.spawn(self.entity.gamemap, self.entity.x, self.entity.y)
+            else:
+                # Drop whole stack
+                self.entity.inventory.drop(self.item)
 
 
 class EquipAction(Action):

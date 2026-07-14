@@ -12,7 +12,13 @@
     }
   ],
   "items": [
-    {"id": "fireball_scroll", "x": 12, "y": 8}
+    {"id": "fireball_scroll", "x": 6, "y": 4},
+    {"id": "sword", "x": 6, "y": 4},
+    {"id": "chain_mail", "x": 6, "y": 4},
+    {"id": "health_potion", "x": 6, "y": 4},
+    {"id": "health_potion", "x": 6, "y": 4},
+    {"id": "health_potion", "x": 6, "y": 4},
+    {"id": "health_potion", "x": 6, "y": 4}
   ],
   "monster_pools": [
     {

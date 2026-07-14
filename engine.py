@@ -4,8 +4,8 @@ import lzma
 import pickle
 from typing import TYPE_CHECKING
 
-from tcod.console import Console
-from tcod.map import compute_fov
+from tcod.console import Console #type: ignore
+from tcod.map import compute_fov #type: ignore
 
 import exceptions
 from message_log import MessageLog
