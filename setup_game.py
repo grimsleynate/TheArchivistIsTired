@@ -73,19 +73,22 @@ def new_game() -> Engine:
     health_potion2 = copy.deepcopy(entity_factories.health_potion)
     health_potion3 = copy.deepcopy(entity_factories.health_potion)
     
-    player.inventory.items.append(health_potion1)
-    player.inventory.items.append(health_potion2)
-    player.inventory.items.append(health_potion3)
-    
 
     dagger.parent = player.inventory
     leather_armor.parent = player.inventory
+    health_potion1.parent = player.inventory
+    health_potion2.parent = player.inventory
+    health_potion3.parent = player.inventory
 
-    player.inventory.items.append(dagger)
+    player.inventory.add_item(dagger)
     player.equipment.toggle_equip(dagger, add_message=False)
 
-    player.inventory.items.append(leather_armor)
+    player.inventory.add_item(leather_armor)
     player.equipment.toggle_equip(leather_armor, add_message=False)
+    
+    player.inventory.add_item(health_potion1)
+    player.inventory.add_item(health_potion2)
+    player.inventory.add_item(health_potion3)
 
     return engine
 

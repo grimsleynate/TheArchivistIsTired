@@ -314,12 +314,13 @@ class PickupMenuHandler(AskUserEventHandler):
         px, py = engine.player.x, engine.player.y
         self.x = px
         self.y = py
-        self.items = list(engine.game_map.get_items_at(px, py))
+        # Stacks of items on this tile
+        self.stacks = engine.game_map.get_items_at(px, py)
 
     def on_render(self, console: tcod.Console) -> None:
         super().on_render(console)
 
-        height = len(self.items) + 3
+        height = len(self.stacks) + 3
         if height < 3:
             height = 3
 
@@ -333,14 +334,17 @@ class PickupMenuHandler(AskUserEventHandler):
             fg=(255, 255, 255), bg=(0, 0, 0),
         )
 
-        for i, item in enumerate(self.items):
+        for i, stack in enumerate(self.stacks):
+            item = stack[0]
+            count = len(stack)
             key = chr(ord("a") + i)
-            if item.stack_size > 1:
-                console.print(x + 1, y + i + 1, f"({key}) {item.name} ({item.stack_size})")
+
+            if count > 1:
+                console.print(x + 1, y + i + 1, f"({key}) {item.name} ({count})")
             else:
                 console.print(x + 1, y + i + 1, f"({key}) {item.name}")
 
-            console.print(x + 1, y + height - 2, "(Tab) Pick up all")
+        console.print(x + 1, y + height - 2, "(Tab) Pick up all")
 
     def ev_keydown(self, event: tcod.event.KeyDown):
         key = event.sym
@@ -349,56 +353,71 @@ class PickupMenuHandler(AskUserEventHandler):
         index = key - tcod.event.K_a
 
         if 0 <= index <= 52:
-            item = self.items[index]
-
-            if len(inventory.items) >= inventory.capacity:
-                self.engine.message_log.add_message("Your inventory is full.", color.invalid)
+            if index >= len(self.stacks):
+                self.engine.message_log.add_message("Invalid entry.", color.invalid)
                 return None
 
-            self.engine.game_map.entities.remove(item)
-            self.engine.game_map.remove_item(item, self.x, self.y)
-            item.parent = inventory
-            # Try to merge into existing stack
-            for stack in inventory.items:
-                self.engine.message_log.add_message(f"Stack Name: {stack.name}, Item Name: {item.name}, Stack Size: {item.stack_size}, Max Stack: {item.max_stack}")
-                if stack.name == item.name and stack.stack_size < stack.max_stack:
-                    stack.stack_size += item.stack_size
-                    return
-            else:
-                # No merge happened → add new stack
-                inventory.items.append(item)
+            stack = self.stacks[index]
+            if not stack:
+                self.engine.message_log.add_message("Nothing to pick up.", color.invalid)
+                return None
 
-            self.items.remove(item)
+            # Take ONE item from the stack
+            item = stack.pop()
+
+            if not stack:
+                self.stacks.remove(stack)
+
+            # Check inventory capacity (stacks)
+            if len(inventory.slots) >= inventory.capacity:
+                self.engine.message_log.add_message("Your inventory is full.", color.invalid)
+                # Put item back into stack if we failed
+                stack.append(item)
+                if stack not in self.stacks:
+                    self.stacks.append(stack)
+                return None
+
+            # Remove from tile stacks and entities (if items are in entities)
+            self.engine.game_map.remove_item(item, self.x, self.y)
+            if item in self.engine.game_map.entities:
+                self.engine.game_map.entities.remove(item)
+
+            item.parent = inventory
+            inventory.add_item(item)
 
             self.engine.message_log.add_message(f"You picked up the {item.name}!")
 
-            if not self.items:
+            if not self.stacks:
                 return None
 
             return None
+
         elif key == tcod.event.K_TAB:
-            for item in list(self.items):
-                if len(inventory.items) >= inventory.capacity:
-                    self.engine.message_log.add_message("Your inventory is full.", color.invalid)
-                    break
+            # Pick up all items on this tile, stack-aware
+            for stack in list(self.stacks):
+                while stack:
+                    item = stack.pop()
 
-                self.engine.game_map.entities.remove(item)
-                self.engine.game_map.remove_item(item, self.x, self.y)
-                item.parent = inventory
-                # Try to merge into existing stack
-                for stack in inventory.items:
-                    if stack.name == item.name and stack.stack_size < stack.max_stack:
-                        stack.stack_size += item.stack_size
-                        return
-                else:
-                    # No merge happened → add new stack
-                    inventory.items.append(item)
+                    if len(inventory.slots) >= inventory.capacity:
+                        self.engine.message_log.add_message("Your inventory is full.", color.invalid)
+                        # Put item back and stop processing this stack
+                        stack.append(item)
+                        break
 
-                self.items.remove(item)
+                    self.engine.game_map.remove_item(item, self.x, self.y)
+                    if item in self.engine.game_map.entities:
+                        self.engine.game_map.entities.remove(item)
 
-                self.engine.message_log.add_message(f"You picked up the {item.name}!")
+                    item.parent = inventory
+                    inventory.add_item(item)
+
+                    self.engine.message_log.add_message(f"You picked up the {item.name}!")
+
+                if not stack:
+                    self.stacks.remove(stack)
 
             return super().ev_keydown(event)
+
         return super().ev_keydown(event)
 
 
@@ -411,15 +430,11 @@ class InventoryEventHandler(AskUserEventHandler):
     TITLE = "<missing title>"
 
     def on_render(self, console: tcod.Console) -> None:
-        """Render an inventory menu, which displays the items in the inventory, and the letter to select them.
-        Will move to a different position based on where the player is located, so the player can always see where
-        they are.
-        """
+        """Render an inventory menu, which displays the items in the inventory, and the letter to select them."""
         super().on_render(console)
-        number_of_items_in_inventory = len(self.engine.player.inventory.items)
+        number_of_stacks_in_inventory = len(self.engine.player.inventory.slots)
 
-        height = number_of_items_in_inventory + 2
-
+        height = number_of_stacks_in_inventory + 2
         if height <= 3:
             height = 3
 
@@ -429,7 +444,6 @@ class InventoryEventHandler(AskUserEventHandler):
             x = 0
 
         y = 0
-
         width = len(self.TITLE) + 4
 
         console.draw_frame(
@@ -443,14 +457,16 @@ class InventoryEventHandler(AskUserEventHandler):
             bg=(0, 0, 0),
         )
 
-        if number_of_items_in_inventory > 0:
-            for i, item in enumerate(self.engine.player.inventory.items):
+        if number_of_stacks_in_inventory > 0:
+            for i, stack in enumerate(self.engine.player.inventory.slots):
                 item_key = chr(ord("a") + i)
+                item = stack[0]
+                count = len(stack)
 
                 is_equipped = self.engine.player.equipment.item_is_equipped(item)
 
-                if item.stack_size > 1:
-                    item_string = f"({item_key}) {item.name} ({item.stack_size})"
+                if count > 1:
+                    item_string = f"({item_key}) {item.name} ({count})"
                 else:
                     item_string = f"({item_key}) {item.name}"
 
@@ -468,7 +484,8 @@ class InventoryEventHandler(AskUserEventHandler):
 
         if 0 <= index <= 26:
             try:
-                selected_item = player.inventory.items[index]
+                stack = player.inventory.slots[index]
+                selected_item = stack[0]
             except IndexError:
                 self.engine.message_log.add_message("Invalid entry.", color.invalid)
                 return None
@@ -503,6 +520,7 @@ class InventoryDropHandler(InventoryEventHandler):
     def on_item_selected(self, item: Item) -> Optional[ActionOrHandler]:
         """Drop this item."""
         return actions.DropItem(self.engine.player, item)
+
 
 
 class SelectIndexHandler(AskUserEventHandler):

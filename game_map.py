@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Iterable, Iterator, Optional, TYPE_CHECKING, Dict, Tuple, List
 
 import numpy as np  # type: ignore
-from tcod.console import Console #type: ignore
+from tcod.console import Console  # type: ignore
 
 from entity import Actor, Item
 import tile_types
@@ -20,7 +20,8 @@ class GameMap:
         self.engine = engine
         self.width, self.height = width, height
         self.entities = set(entities)
-        self.items_at_location: Dict[Tuple[int, int], List[Entity]] = {}
+        # Tile items are stored as stacks: List[List[Item]]
+        self.items_at_location: Dict[Tuple[int, int], List[List[Item]]] = {}
         self.tiles = np.full((width, height), fill_value=tile_types.wall, order="F")
 
         self.visible = np.full(
@@ -31,7 +32,7 @@ class GameMap:
         )  # Tiles the player has seen before
 
     @property
-    def gamemap(self) -> GameMap:
+    def gamemap(self) -> "GameMap":
         return self
 
     @property
@@ -45,11 +46,12 @@ class GameMap:
 
     @property
     def items(self) -> Iterator[Item]:
+        """Iterate over item entities (if kept in entities)."""
         yield from (entity for entity in self.entities if isinstance(entity, Item))
 
     def get_blocking_entity_at_location(
         self, location_x: int, location_y: int,
-    ) -> Optional[Entity]:
+    ) -> Optional["Entity"]:
         for entity in self.entities:
             if (
                 entity.blocks_movement
@@ -57,27 +59,51 @@ class GameMap:
                 and entity.y == location_y
             ):
                 return entity
-
         return None
-    
-    def get_items_at(self, x: int, y: int) -> List[Entity]:
+
+    def get_items_at(self, x: int, y: int) -> List[List[Item]]:
+        """Return stacks of items at a tile."""
         return self.items_at_location.get((x, y), [])
 
-    def add_item(self, item: Entity, x: int, y: int) -> None:
-        self.items_at_location.setdefault((x, y), []).append(item)
+    def add_item(self, item: Item, x: int, y: int) -> None:
+        """Add an item to a tile, stacking with like items."""
+        stacks = self.items_at_location.setdefault((x, y), [])
 
-    def remove_item(self, item: Entity, x: int, y: int) -> None:
-        if (x, y) in self.items_at_location:
-            self.items_at_location[(x, y)].remove(item)
-            if not self.items_at_location[(x, y)]:
-                del self.items_at_location[(x, y)]
+        # Ensure parent is this map
+        item.parent = self
 
+        # Try to merge into existing stack
+        for stack in stacks:
+            if stack and stack[0].name == item.name and len(stack) < stack[0].max_stack:
+                stack.append(item)
+                return
+
+        # Otherwise create new stack
+        stacks.append([item])
+
+    def remove_item(self, item: Item, x: int, y: int) -> None:
+        """Remove an item from tile stacks at (x, y)."""
+        if (x, y) not in self.items_at_location:
+            return
+
+        stacks = self.items_at_location[(x, y)]
+        if not stacks:
+            return
+
+        for stack in stacks:
+            if item in stack:
+                stack.remove(item)
+                if not stack:
+                    stacks.remove(stack)
+                break
+
+        if not stacks:
+            del self.items_at_location[(x, y)]
 
     def get_actor_at_location(self, x: int, y: int) -> Optional[Actor]:
         for actor in self.actors:
             if actor.x == x and actor.y == y:
                 return actor
-
         return None
 
     def in_bounds(self, x: int, y: int) -> bool:
@@ -85,7 +111,7 @@ class GameMap:
         return 0 <= x < self.width and 0 <= y < self.height
 
     def render(self, console: Console) -> None:
-    # Camera centered on player
+        # Camera centered on player
         cam_x = max(0, self.engine.player.x - console.width // 2)
         cam_y = max(0, self.engine.player.y - console.height // 2)
 
@@ -103,8 +129,10 @@ class GameMap:
 
         tile_slice = np.select(
             condlist=[visible_slice, explored_slice],
-            choicelist=[self.tiles["light"][cam_x:cam_x+view_w, cam_y:cam_y+view_h],
-                        self.tiles["dark"][cam_x:cam_x+view_w, cam_y:cam_y+view_h]],
+            choicelist=[
+                self.tiles["light"][cam_x:cam_x+view_w, cam_y:cam_y+view_h],
+                self.tiles["dark"][cam_x:cam_x+view_w, cam_y:cam_y+view_h],
+            ],
             default=tile_types.SHROUD,
         )
 
@@ -122,10 +150,11 @@ class GameMap:
                 continue
 
             # --- MULTI-ITEM TILE OVERRIDE ---
-            items_here = self.get_items_at(ex, ey)
+            stacks_here = self.get_items_at(ex, ey)
+            total_items = sum(len(stack) for stack in stacks_here)
 
             # If this tile has multiple items, draw the special glyph ONCE
-            if len(items_here) > 1:
+            if total_items > 1:
                 console.print(
                     x=ex - cam_x,
                     y=ey - cam_y,
@@ -138,15 +167,22 @@ class GameMap:
                     continue
 
             # If this tile has exactly one item, draw that item instead of the entity
-            elif len(items_here) == 1 and isinstance(entity, Item):
-                item = items_here[0]
-                console.print(
-                    x=ex - cam_x,
-                    y=ey - cam_y,
-                    string=item.char,
-                    fg=item.color,
-                )
-                continue
+            elif total_items == 1 and isinstance(entity, Item):
+                # Find the single item
+                item: Optional[Item] = None
+                for stack in stacks_here:
+                    if stack:
+                        item = stack[0]
+                        break
+
+                if item:
+                    console.print(
+                        x=ex - cam_x,
+                        y=ey - cam_y,
+                        string=item.char,
+                        fg=item.color,
+                    )
+                    continue
 
             # --- DEFAULT ENTITY RENDERING ---
             console.print(
@@ -187,7 +223,7 @@ class GameWorld:
 
     def generate_floor(self) -> None:
         from procgen import generate_dungeon, generate_cave_dungeon
-        
+
         self.current_floor += 1
 
         self.engine.game_map = generate_cave_dungeon(

@@ -46,7 +46,7 @@ class Entity:
         self.name = name
         self.blocks_movement = blocks_movement
         self.render_order = render_order
-        self.max_stack = 1
+        self.max_stack = max_stack
         self.stack_size = 1
         if parent:
             # If parent isn't provided now then it will be set later.
