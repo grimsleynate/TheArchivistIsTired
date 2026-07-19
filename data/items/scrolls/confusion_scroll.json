@@ -1,0 +1,24 @@
+{
+  "id": "item.confusion_scroll",
+  "name": "Confusion Scroll",
+  "char": "~",
+  "color": [80, 255, 80],
+  "type": "scroll",
+  "subtype": "mental",
+  "icon": "confusion_scroll.png",
+  "description": "Causes one target to become confused for a short time.",
+  "rarity": "common",
+  "stack_max": 99,
+  "components": {
+    "consumable": {
+      "class": "ConfusionConsumable",
+      "module": "components.consumable",
+      "args": {"number_of_turns": 10}
+    }
+  },
+  "spawn": {
+    "min_depth": 1,
+    "max_depth": 10,
+    "weight": 10
+  }
+}

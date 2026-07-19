@@ -1,0 +1,22 @@
+{
+  "id": "actor.player",
+  "name": "Player",
+  "char": "@",
+  "color": [80, 200, 255],
+  "ai": {
+    "class": "HostileEnemy",
+    "module": "components.ai",
+    "args": {}
+  },
+  "components": {
+    "fighter": { "class": "Fighter", "module": "components.fighter", "args": { "hp": 30, "base_defense": 1, "base_power": 2 } },
+    "equipment": { "class": "Equipment", "module": "components.equipment", "args": {} },
+    "inventory": { "class": "Inventory", "module": "components.inventory", "args": { "capacity": 26 } },
+    "level": { "class": "Level", "module": "components.level", "args": { "level_up_base": 200 } }
+  },
+  "starting_items": [
+    { "item_id": "item.dagger", "count": 1, "equip": true },
+    { "item_id": "item.leather_armor", "count": 1, "equip": true },
+    { "item_id": "item.health_potion", "count": 3, "equip": false }
+  ]
+}

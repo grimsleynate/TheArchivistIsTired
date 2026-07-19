@@ -1,0 +1,24 @@
+{
+  "id": "item.chain_mail",
+  "name": "Chain Mail",
+  "char": "[",
+  "color": [80, 255, 80],
+  "type": "armor",
+  "subtype": "heavy",
+  "icon": "chain_mail.png",
+  "description": "Rusted and covered with rivets, this chainmail has seen better days. Unfortunately, so will you thanks to the protection it affords.",
+  "rarity": "common",
+  "stack_max": 99,
+  "components": {
+    "equippable": {
+      "class": "ChainMail",
+      "module": "components.equippable",
+      "args": {}
+    }
+  },
+  "spawn": {
+    "min_depth": 1,
+    "max_depth": 10,
+    "weight": 10
+  }
+}

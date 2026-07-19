@@ -1,0 +1,26 @@
+{
+  "id": "item.lightning_scroll",
+  "name": "Lightning Scroll",
+  "char": "~",
+  "color": [80, 255, 80],
+  "type": "scroll",
+  "subtype": "physical",
+  "icon": "lightning_scroll.png",
+  "description": "Calls lightning down from the heavens to smite whatever is unlucky enough to stand in your way.",
+  "rarity": "common",
+  "stack_max": 99,
+  "components": {
+    "consumable": {
+      "class": "LightningDamageConsumable",
+      "module": "components.consumable",
+      "args": {
+        "damage": 20,
+        "maximum_range": 5}
+    }
+  },
+  "spawn": {
+    "min_depth": 1,
+    "max_depth": 10,
+    "weight": 10
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "id": "item.dagger",
+  "name": "Dagger",
+  "char": "/",
+  "color": [80, 255, 80],
+  "type": "weapon",
+  "subtype": "dagger",
+  "icon": "crude_dagger.png",
+  "description": "A short, sharp blade; barely capable of cutting through your ennui.",
+  "rarity": "common",
+  "stack_max": 99,
+  "components": {
+    "equippable": {
+      "class": "Dagger",
+      "module": "components.equippable",
+      "args": {}
+    }
+  },
+  "spawn": {
+    "min_depth": 1,
+    "max_depth": 10,
+    "weight": 10
+  }
+}

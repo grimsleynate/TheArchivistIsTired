@@ -1,0 +1,26 @@
+{
+  "id": "item.fireball_scroll",
+  "name": "Fireball Scroll",
+  "char": "~",
+  "color": [80, 255, 80],
+  "type": "scroll",
+  "subtype": "physical",
+  "icon": "fireball_scroll.png",
+  "description": "Engulfs an area in flame, cooking all in the path of its fury. \nA favorite of many a wizard with more brains than forethought.",
+  "rarity": "common",
+  "stack_max": 99,
+  "components": {
+    "consumable": {
+      "class": "AreaOfEffectConsumable",
+      "module": "components.consumable",
+      "args": {
+        "damage": 12,
+        "radius": 3}
+    }
+  },
+  "spawn": {
+    "min_depth": 1,
+    "max_depth": 10,
+    "weight": 10
+  }
+}

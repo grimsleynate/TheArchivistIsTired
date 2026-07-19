@@ -1,0 +1,24 @@
+{
+  "id": "item.sword",
+  "name": "Sword",
+  "char": "/",
+  "color": [80, 255, 80],
+  "type": "weapon",
+  "subtype": "short_blade",
+  "icon": "crude_sword.png",
+  "description": "A sword, slightly better than your other options.",
+  "rarity": "common",
+  "stack_max": 99,
+  "components": {
+    "equippable": {
+      "class": "Sword",
+      "module": "components.equippable",
+      "args": {}
+    }
+  },
+  "spawn": {
+    "min_depth": 1,
+    "max_depth": 10,
+    "weight": 10
+  }
+}
