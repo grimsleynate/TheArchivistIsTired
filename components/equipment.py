@@ -73,6 +73,7 @@ class Equipment(BaseComponent):
         setattr(self, slot, None)
 
     def toggle_equip(self, equippable_item: Item, add_message: bool = True) -> None:
+        # Determine slot
         if (
             equippable_item.equippable
             and equippable_item.equippable.equipment_type == EquipmentType.WEAPON
@@ -81,7 +82,21 @@ class Equipment(BaseComponent):
         else:
             slot = "armor"
 
+        inventory = self.parent.inventory
+
+        # If already equipped → unequip
         if getattr(self, slot) == equippable_item:
+            # Unequip from slot
             self.unequip_from_slot(slot, add_message)
+
+            # Merge back into unequipped stack
+            inventory.merge_unequipped_item(equippable_item)
+
         else:
+            # Equipping this item
+
+            # Ensure it is in a single-item stack
+            inventory.ensure_single_item_stack(equippable_item)
+
+            # Equip to slot
             self.equip_to_slot(slot, equippable_item, add_message)

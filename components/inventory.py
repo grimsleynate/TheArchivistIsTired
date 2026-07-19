@@ -49,7 +49,7 @@ class Inventory(BaseComponent):
                 return stack
 
         return None
-
+    
 
     def add_item(self, item: Item) -> bool:
         # Try stacking first
@@ -66,3 +66,32 @@ class Inventory(BaseComponent):
             return True
 
         return False  # inventory full
+    
+    def remove_from_stack(self, item: Item) -> None:
+        """Remove an item from whatever stack it is in."""
+        for stack in self.slots:
+            if item in stack:
+                stack.remove(item)
+                if not stack:
+                    self.slots.remove(stack)
+                return
+
+    def ensure_single_item_stack(self, item: Item) -> None:
+        """Ensure this item is in its own stack of length 1."""
+        # First remove it from any existing stack
+        self.remove_from_stack(item)
+
+        # Then create a new single-item stack
+        new_stack = [item]
+        item.parent = self
+        
+        #Insert at top of inventory
+        self.slots.insert(0, new_stack)
+        
+    def merge_unequipped_item(self, item: Item) -> None:
+        """After unequipping, merge this item back into an appropriate stack if possible."""
+        # Remove its current stack (it should be a single-item stack)
+        self.remove_from_stack(item)
+
+        # Now add it back using normal stacking rules
+        self.add_item(item)
