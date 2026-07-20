@@ -348,6 +348,9 @@ class PickupMenuHandler(AskUserEventHandler):
         self.y = py
         # Stacks of items on this tile
         self.stacks = engine.game_map.get_items_at(px, py)
+        
+        if not self.stacks:
+            raise exceptions.Impossible("There are no items here to pick up.")
 
     def on_render(self, console: tcod.Console) -> None:
         super().on_render(console)
@@ -390,57 +393,15 @@ class PickupMenuHandler(AskUserEventHandler):
         key = event.sym
         player = self.engine.player
         inventory = player.inventory
-        index = key - tcod.event.K_a
 
-        if 0 <= index <= 52:
-            if index >= len(self.stacks):
-                self.engine.message_log.add_message("Invalid entry.", color.invalid)
-                return None
-
-            stack = self.stacks[index]
-            if not stack:
-                self.engine.message_log.add_message("Nothing to pick up.", color.invalid)
-                return None
-
-            # Take ONE item from the stack
-            item = stack.pop()
-
-            if not stack:
-                self.stacks.remove(stack)
-
-            # Check inventory capacity (stacks)
-            if len(inventory.slots) >= inventory.capacity:
-                self.engine.message_log.add_message("Your inventory is full.", color.invalid)
-                # Put item back into stack if we failed
-                stack.append(item)
-                if stack not in self.stacks:
-                    self.stacks.append(stack)
-                return None
-
-            # Remove from tile stacks and entities (if items are in entities)
-            self.engine.game_map.remove_item(item, self.x, self.y)
-            if item in self.engine.game_map.entities:
-                self.engine.game_map.entities.remove(item)
-
-            item.parent = inventory
-            inventory.add_item(item)
-
-            self.engine.message_log.add_message(f"You picked up the {item.name}!")
-
-            if not self.stacks:
-                return None
-
-            return None
-
-        elif key == tcod.event.K_TAB:
-            # Pick up all items on this tile, stack-aware
+        # --- TAB: pick up everything (unchanged) ---
+        if key == tcod.event.K_TAB:
             for stack in list(self.stacks):
                 while stack:
                     item = stack.pop()
 
                     if len(inventory.slots) >= inventory.capacity:
                         self.engine.message_log.add_message("Your inventory is full.", color.invalid)
-                        # Put item back and stop processing this stack
                         stack.append(item)
                         break
 
@@ -458,6 +419,45 @@ class PickupMenuHandler(AskUserEventHandler):
 
             return super().ev_keydown(event)
 
+        # --- LETTER KEYS: open tile context menu instead of picking up ---
+        if tcod.event.K_a <= key <= tcod.event.K_z:
+            index = key - tcod.event.K_a
+
+            if index >= len(self.stacks):
+                self.engine.message_log.add_message("Invalid entry.", color.invalid)
+                return None
+
+            stack = self.stacks[index]
+            if not stack:
+                self.engine.message_log.add_message("Nothing to pick up.", color.invalid)
+                return None
+
+            # The item we will show the context menu for
+            item = stack[-1]   # DO NOT pop here — context menu decides what to do
+
+            # Compute anchor position (same as inventory)
+            row_x, row_y, row_width = self.get_row_anchor(index)
+
+            # Open tile context menu
+            return PickupContextMenuHandler(
+                self.engine,
+                item,
+                anchor_x=row_x,
+                anchor_y=row_y,
+                anchor_width=row_width,
+                parent=self,
+            )
+
+        # --- ENTER: pick up highlighted item (unchanged) ---
+        if key == tcod.event.K_RETURN:
+            return self.pickup_highlighted_item()
+
+        # --- Arrow keys (unchanged) ---
+        if key == tcod.event.K_UP:
+            return self.move_highlight(-1)
+        if key == tcod.event.K_DOWN:
+            return self.move_highlight(1)
+
         return super().ev_keydown(event)
 
     def on_mouse_hover(self, index):
@@ -467,6 +467,71 @@ class PickupMenuHandler(AskUserEventHandler):
         stack = self.stacks[index]
         if stack:
             item = stack.pop()
+
+    def get_row_anchor(self, index):
+        """
+        Returns (x, y, width) for the row at the given index,
+        matching the inventory menu’s anchor logic.
+        """
+
+        # The pickup menu prints items starting at some base Y.
+        # You already know where your pickup menu draws rows.
+        # This matches the inventory menu’s pattern:
+        base_x = self.x  # or whatever your pickup menu uses
+        base_y = self.y  # same as above
+
+        # PickupMenuHandler draws each stack on its own line.
+        row_y = base_y + index
+        row_x = base_x
+
+        # Compute width from the longest item name in the stack
+        stack = self.stacks[index]
+        longest = max((len(item.name) for item in stack), default=1)
+        row_width = longest
+
+        return row_x, row_y, row_width
+
+    def pickup_specific_item(self, item):
+        player = self.engine.player
+        inventory = player.inventory
+
+        # Find the stack containing this item
+        for stack in list(self.stacks):
+            if item in stack:
+                # same logic you use in ev_keydown for single pickup
+                if len(inventory.slots) >= inventory.capacity:
+                    self.engine.message_log.add_message("Your inventory is full.", color.invalid)
+                    return None
+
+                stack.remove(item)
+                if not stack:
+                    self.stacks.remove(stack)
+
+                self.engine.game_map.remove_item(item, self.x, self.y)
+                if item in self.engine.game_map.entities:
+                    self.engine.game_map.entities.remove(item)
+
+                item.parent = inventory
+                inventory.add_item(item)
+
+                self.engine.message_log.add_message(f"You picked up the {item.name}!")
+                return None
+
+        raise exceptions.Impossible("That item is not here.")
+
+    def should_close(self):
+        # No stacks left → close
+        if not self.stacks:
+            return True
+
+        # If the only option left is "(Tab) Pick up all", meaning no lettered items
+        # then close the menu.
+        # Letter keys correspond to stacks; if stacks exist but all are empty, close.
+        for stack in self.stacks:
+            if stack:  # at least one item still present
+                return False
+
+        return True
 
 
 class InventoryEventHandler(AskUserEventHandler):  
@@ -954,6 +1019,157 @@ class ContextMenuHandler(AskUserEventHandler):
         return InventoryActivateHandler(self.engine)
 
 
+class PickupContextMenuHandler(AskUserEventHandler):
+    """Context menu for items on the ground."""
+
+    PADDING_X = 2
+    PADDING_Y = 1
+
+    def __init__(self, engine, item, anchor_x, anchor_y, anchor_width, parent=None):
+        super().__init__(engine)
+        self.item = item
+        self.anchor_x = anchor_x
+        self.anchor_y = anchor_y
+        self.anchor_width = anchor_width
+        self.parent = parent
+
+        self.highlight_index = None
+        self.row_bounds = []
+        self.console = None
+        
+    def on_render(self, console: tcod.Console):
+        # Render the pickup menu underneath
+        if self.parent is not None:
+            self.parent.on_render(console)
+
+        self.console = console
+
+        # Compute options once
+        self._options = options = self.get_options()
+        if not options:
+            return
+
+        # Compute width
+        labels = [label for label, _ in options]
+        longest_label = max(labels, key=len)
+        content_width = max(len(longest_label), len(self.item.name))
+
+        menu_width = content_width + self.PADDING_X * 2
+        menu_height = len(options) + self.PADDING_Y * 2 + 1
+
+        # Positioning (same logic as inventory context menu)
+        preferred_x = self.anchor_x + self.anchor_width + 1
+        screen_w = console.width
+        screen_h = console.height
+
+        if preferred_x + menu_width <= screen_w:
+            x = preferred_x
+        else:
+            left_x = self.anchor_x - menu_width - 1
+            if left_x >= 0:
+                x = left_x
+            else:
+                x = max(0, screen_w - menu_width)
+
+        y = self.anchor_y - (self.PADDING_Y + 1)
+        if y < 0:
+            y = 0
+        if y + menu_height > screen_h:
+            y = max(0, screen_h - menu_height)
+
+        # Draw frame
+        console.draw_frame(
+            x=x, y=y, width=menu_width, height=menu_height,
+            title=self.item.name, clear=True,
+            fg=(255, 255, 255), bg=(0, 0, 0),
+        )
+
+        # Draw options + build row bounds
+        self.row_bounds = []
+        for i, (label, _) in enumerate(options):
+            row_y = y + self.PADDING_Y + 1 + i
+            row_x = x + self.PADDING_X
+            bg = (50, 50, 150) if self.highlight_index == i else (0, 0, 0)
+            console.print(row_x, row_y, label.ljust(content_width), fg=(255,255,255), bg=bg)
+
+            self.row_bounds.append((row_x, row_y, row_x + content_width, row_y + 1))
+    
+    def get_options(self):
+        return [
+            ("(g)rab", self.grab_item),
+            ("(l)ook", self.inspect_item),
+            ("cancel", self.close_menu),
+        ]
+
+    # --- actions ---
+    def grab_item(self):
+        # delegate to the pickup menu, then close the context menu
+        if isinstance(self.parent, PickupMenuHandler):
+            self.parent.pickup_specific_item(self.item)
+        return self.close_menu()
+
+
+    def inspect_item(self):
+        self.engine.message_log.add_message(self.item.description)
+        return None
+
+    def close_menu(self):
+        # If opened from a pickup menu, return to that menu
+        if isinstance(self.parent, PickupMenuHandler):
+            return self.parent
+
+        # Fallback: inventory screen (only if somehow opened from inventory)
+        return InventoryActivateHandler(self.engine)
+
+    # --- mouse + keyboard activation ---
+    def ev_keydown(self, event):
+        key = event.sym
+
+        if key == tcod.event.K_ESCAPE:
+            return self.close_menu()
+
+        if key == tcod.event.K_g:  # Grab
+            return self.grab_item()
+
+        if key == tcod.event.K_l:  # Look / Inspect
+            return self.inspect_item()
+
+        if key == tcod.event.K_RETURN:
+            return self.activate_highlighted_item()
+
+        if key == tcod.event.K_UP:
+            return self.move_highlight(-1)
+
+        if key == tcod.event.K_DOWN:
+            return self.move_highlight(1)
+
+        return None
+
+    def _get_option_result(self, index):
+        options = getattr(self, "_options", None) or self.get_options()
+        if 0 <= index < len(options):
+            _, action_callable = options[index]
+            return action_callable()
+        return None
+
+    def on_mouse_click(self, index):
+        if index is None:
+            return self.close_menu()
+        return self._get_option_result(index)
+
+    def activate_highlighted_item(self):
+        if self.highlight_index is None:
+            return None
+        return self._get_option_result(self.highlight_index)
+
+    def on_mouse_hover(self, index):
+        options = getattr(self, "_options", None) or self.get_options()
+        if index is None or not (0 <= index < len(options)):
+            self.highlight_index = None
+        else:
+            self.highlight_index = index
+
+
 class InventoryDropHandler(InventoryEventHandler):
     """Handle dropping an inventory item."""
 
@@ -1108,7 +1324,21 @@ class MainGameEventHandler(EventHandler):
                 raise exceptions.Impossible("There is nothing here to pick up.")
 
             if len(items_here) == 1:
-                return actions.PickupAction(self.engine.player)
+                items_here = self.engine.game_map.get_items_at(player.x, player.y)
+
+                if not items_here:
+                    raise exceptions.Impossible("There is nothing here to pick up.")
+
+                if len(items_here) > 1:
+                    # open pickup menu
+                    return PickupMenuHandler(self.engine, player.x, player.y)
+
+                # exactly one stack
+                stack = items_here[0]
+                item = stack[-1]   # DO NOT pop here
+
+                return actions.PickupAction(player)
+
 
             # MULTIPLE ITEMS → OPEN MENU
             return PickupMenuHandler(self.engine)

@@ -32,9 +32,8 @@ class Action:
         raise NotImplementedError()
 
 
+# actions.py
 class PickupAction(Action):
-    """Pickup an item and add it to the inventory, if there is room for it."""
-
     def __init__(self, entity: Actor):
         super().__init__(entity)
 
@@ -59,7 +58,6 @@ class PickupAction(Action):
         if len(inventory.slots) >= inventory.capacity:
             raise exceptions.Impossible("Your inventory is full.")
 
-        # Remove from map entity list if items are stored there
         if item in self.engine.game_map.entities:
             self.engine.game_map.entities.remove(item)
 
