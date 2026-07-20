@@ -6,7 +6,6 @@ from collections import deque
 
 import tcod #type: ignore
 
-import entity_factories
 from game_map import GameMap
 import tile_types
 
@@ -27,18 +26,16 @@ max_monsters_by_floor = [
     (6, 5),
 ]
 
-item_chances: Dict[int, List[Tuple[Entity, int]]] = {
-    0: [(entity_factories.health_potion, 35)],
-    2: [(entity_factories.confusion_scroll, 10)],
-    4: [(entity_factories.lightning_scroll, 25), (entity_factories.sword, 5)],
-    6: [(entity_factories.fireball_scroll, 25), (entity_factories.chain_mail, 15)],
+item_chances: Dict[int, List[Tuple[str, int]]] = {
+    0: [("item.health_potion", 35)],
+    2: [("item.confusion_scroll", 10)],
+    4: [("item.lightning_scroll", 25), ("item.sword", 5)],
+    6: [("item.fireball_scroll", 25), ("item.chain_mail", 15)],
 }
 
-enemy_chances: Dict[int, List[Tuple[Entity, int]]] = {
-    0: [(entity_factories.orc, 80)],
-    3: [(entity_factories.troll, 15)],
-    5: [(entity_factories.troll, 30)],
-    7: [(entity_factories.troll, 60)],
+enemy_chances: Dict[int, List[Tuple[str, int]]] = {
+    0: [("actor.orc", 80)],
+    3: [("actor.troll", 15)],
 }
 
 
@@ -56,32 +53,19 @@ def get_max_value_for_floor(
     return current_value
 
 
-def get_entities_at_random(
-    weighted_chances_by_floor: Dict[int, List[Tuple[Entity, int]]],
-    number_of_entities: int,
-    floor: int,
-) -> List[Entity]:
+def get_entities_at_random(weighted_chances_by_floor, number_of_entities, floor):
     entity_weighted_chances = {}
 
     for key, values in weighted_chances_by_floor.items():
         if key > floor:
             break
-        else:
-            for value in values:
-                entity = value[0]
-                weighted_chance = value[1]
+        for id_string, weight in values:
+            entity_weighted_chances[id_string] = weight
 
-                entity_weighted_chances[entity] = weighted_chance
+    ids = list(entity_weighted_chances.keys())
+    weights = list(entity_weighted_chances.values())
 
-    entities = list(entity_weighted_chances.keys())
-    entity_weighted_chance_values = list(entity_weighted_chances.values())
-
-    chosen_entities = random.choices(
-        entities, weights=entity_weighted_chance_values, k=number_of_entities
-    )
-
-    return chosen_entities
-
+    return random.choices(ids, weights=weights, k=number_of_entities)
 
 class RectangularRoom:
     def __init__(self, x: int, y: int, width: int, height: int):
@@ -112,7 +96,7 @@ class RectangularRoom:
         )
 
 
-def place_entities(room: RectangularRoom, dungeon: GameMap, floor_number: int,) -> None:
+def place_entities(room: RectangularRoom, dungeon: GameMap, floor_number: int, engine: Engine) -> None:
     number_of_monsters = random.randint(
         0, get_max_value_for_floor(max_monsters_by_floor, floor_number)
     )
@@ -120,19 +104,23 @@ def place_entities(room: RectangularRoom, dungeon: GameMap, floor_number: int,) 
         0, get_max_value_for_floor(max_items_by_floor, floor_number)
     )
 
-    monsters: List[Entity] = get_entities_at_random(
-        enemy_chances, number_of_monsters, floor_number
-    )
-    items: List[Entity] = get_entities_at_random(
-        item_chances, number_of_items, floor_number
-    )
+    monsters = get_entities_at_random(enemy_chances, number_of_monsters, floor_number)
+    items = get_entities_at_random(item_chances, number_of_items, floor_number)
 
-    for entity in monsters + items:
+    for id_string in monsters + items:
         x = random.randint(room.x1 + 1, room.x2 - 1)
         y = random.randint(room.y1 + 1, room.y2 - 1)
 
-        if not any(entity.x == x and entity.y == y for entity in dungeon.entities):
-            entity.spawn(dungeon, x, y)
+        if id_string.startswith("actor."):
+            actor = engine.factory.create_actor(id_string)
+            actor.place(x, y, dungeon)
+            dungeon.entities.add(actor)
+        else:
+            item = engine.factory.create_item(id_string)
+            item.place(x, y, dungeon)      # <-- this line
+            dungeon.add_item(item, x, y)
+
+
             
 def get_floor_tiles(cave):
     """Return a list of (x, y) floor coordinates."""
@@ -147,11 +135,7 @@ def get_floor_tiles(cave):
 
     return tiles
 
-def place_entities_in_cave(
-    dungeon: GameMap,
-    cave: List[List[int]],
-    floor_number: int
-) -> None:
+def place_entities_in_cave(dungeon: GameMap, cave: List[List[int]], floor_number: int, engine: Engine) -> None:
     floor_tiles = get_floor_tiles(cave)
 
     number_of_monsters = random.randint(
@@ -161,25 +145,29 @@ def place_entities_in_cave(
         0, get_max_value_for_floor(max_items_by_floor, floor_number)
     )
 
-    monsters: List[Entity] = get_entities_at_random(
-        enemy_chances, number_of_monsters, floor_number
-    )
-    items: List[Entity] = get_entities_at_random(
-        item_chances, number_of_items, floor_number
-    )
+    monsters = get_entities_at_random(enemy_chances, number_of_monsters, floor_number)
+    items = get_entities_at_random(item_chances, number_of_items, floor_number)
 
-    # Shuffle floor tiles so we can pop from the front
     random.shuffle(floor_tiles)
 
-    for entity in monsters + items:
+    for id_string in monsters + items:
         if not floor_tiles:
-            break  # No valid tiles left
+            break
 
         x, y = floor_tiles.pop()
 
-        # Ensure no entity already occupies this tile
         if not any(e.x == x and e.y == y for e in dungeon.entities):
-            entity.spawn(dungeon, x, y)
+            if id_string.startswith("actor."):
+                actor = engine.factory.create_actor(id_string)
+                actor.place(x, y, dungeon)
+                dungeon.entities.add(actor)
+            else:
+                item = engine.factory.create_item(id_string)
+                item.place(x, y, dungeon)      # <-- this line
+                dungeon.add_item(item, x, y)
+
+
+
 
 
 def tunnel_between(
@@ -230,8 +218,12 @@ def generate_cave_dungeon(
     dungeon.tiles[sx, sy] = tile_types.down_stairs
     dungeon.downstairs_location = (sx, sy) #type: ignore
 
+    print("DEBUG engine:", engine)
+    print("DEBUG engine.factory:", getattr(engine, "factory", None))
+    print("DEBUG engine.game_world:", getattr(engine, "game_world", None))
+
     # --- Place monsters/items using your existing logic ---
-    place_entities_in_cave(dungeon, cave, engine.game_world.current_floor)
+    place_entities_in_cave(dungeon, cave, engine.game_world.current_floor, engine)
 
     return dungeon
 
@@ -272,10 +264,6 @@ def generate_dungeon(
         if len(rooms) == 0:
             # The first room, where the player starts.
             player.place(*new_room.center, dungeon)
-            """THIS IS ALL FOR TESTING"""
-            cx, cy = new_room.center
-            entity_factories.fireball_scroll.spawn(dungeon, cx, cy)
-            entity_factories.confusion_scroll.spawn(dungeon, cx - 1, cy + 1)
             
         else:  # All rooms after the first.
             # Dig out a tunnel between this room and the previous one.
@@ -284,7 +272,7 @@ def generate_dungeon(
 
             center_of_last_room = new_room.center
 
-        place_entities(new_room, dungeon, engine.game_world.current_floor)
+        place_entities(new_room, dungeon, engine.game_world.current_floor, engine)
 
         dungeon.tiles[center_of_last_room] = tile_types.down_stairs
         dungeon.downstairs_location = center_of_last_room #type: ignore

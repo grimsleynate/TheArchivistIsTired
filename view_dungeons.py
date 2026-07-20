@@ -1,13 +1,12 @@
-import sys, os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from entity_factory import EntityFactory
 
+from data_loader import DataRepository
 import tcod #type: random
 import random
 
 from engine import Engine
 from game_map import GameMap
 import tile_types
-import entity_factories
 from procgen import generate_dungeon, generate_cave_dungeon
 
 def bg(r, g, b):
@@ -98,11 +97,23 @@ def print_dungeon(dungeon: GameMap):
 
 
 # --- Fake engine for testing ---
-class DummyEngine(Engine):
+class DummyEngine:
     def __init__(self):
-        # Create a fake player entity
-        self.player = entity_factories.player
-        self.game_world = type("GW", (), {"current_floor": 1}) #type: ignore
+        # Load JSON definitions
+        self.data_repo = DataRepository("data/actors", "data/items")
+        self.factory = EntityFactory(self.data_repo, self)
+
+        # Create JSON-driven player
+        self.player = self.factory.create_actor("actor.player")
+
+        # Fake game_world
+        self.game_world = type("GW", (), {"current_floor": 1})()
+
+        # Fake fields used by GameMap
+        self.message_log = None
+        self.mouse_location = (0, 0)
+        self.game_map = None
+
 
 
 # --- Main test harness ---
@@ -111,19 +122,19 @@ def main():
 
     for i in range(20):
         print(f"\n=== DUNGEON {i+1} ===\n")
-        dungeon = generate_cave_dungeon(
-            map_width=80,
-            map_height=45,
-            engine=engine
-        )
-        # dungeon = generate_dungeon(
+        # dungeon = generate_cave_dungeon(
         #     map_width=80,
         #     map_height=45,
-        #     max_rooms=15,
-        #     room_min_size=8,
-        #     room_max_size=12,
         #     engine=engine
         # )
+        dungeon = generate_dungeon(
+            map_width=80,
+            map_height=45,
+            max_rooms=15,
+            room_min_size=8,
+            room_max_size=12,
+            engine=engine
+        )
         print_dungeon(dungeon)
 
 

@@ -4,21 +4,33 @@ from pathlib import Path
 
 import tile_types
 from game_map import GameMap
-import entity_factories
-
 
 def load_json(path: str) -> dict:
     with open(path, "r") as f:
         return json.load(f)
 
+def choose_from_pool(factory, pool: list[dict], count: int):
+    """
+    pool entries look like:
+    { "id": "item.health_potion", "weight": 10 }
+    or
+    { "id": "actor.orc", "weight": 12 }
+    """
+    ids = [entry["id"] for entry in pool]
+    weights = [entry["weight"] for entry in pool]
+    chosen_ids = random.choices(ids, weights=weights, k=count)
+    return [factory.create_item(i) if i.startswith("item.")
+            else factory.create_actor(i)
+            for i in chosen_ids]
 
-def choose_from_pool(pool: list[dict], count: int):
-    entities = [getattr(entity_factories, c["id"]) for c in pool]
-    weights = [c["weight"] for c in pool]
-    return random.choices(entities, weights=weights, k=count)
+def load_map(
+    engine,
+    txt_path: str,
+    json_path: str,
+    item_pool_path="pools/item_pools.json",
+    monster_pool_path="pools/monster_pools.json"
+) -> GameMap:
 
-
-def load_map(engine, txt_path: str, json_path: str, item_pool_path="pools/item_pools.json", monster_pool_path="pools/monster_pools.json") -> GameMap:
     # Load ASCII layout
     with open(txt_path, "r") as f:
         ascii_map = [list(line.rstrip("\n")) for line in f]
@@ -32,7 +44,7 @@ def load_map(engine, txt_path: str, json_path: str, item_pool_path="pools/item_p
 
     dungeon = GameMap(engine, width, height, entities=[engine.player])
     engine.player.place(1, 1, dungeon)
-    
+
     # Fill tiles
     for y, row in enumerate(ascii_map):
         for x, char in enumerate(row):
@@ -43,35 +55,44 @@ def load_map(engine, txt_path: str, json_path: str, item_pool_path="pools/item_p
             elif char == ">":
                 dungeon.tiles[x, y] = tile_types.down_stairs
 
+    factory = engine.factory
+
     # Spawn items from pools
     for pool_def in metadata.get("item_pools", []):
         pool_id = pool_def["pool_id"]
         count = pool_def.get("count", 1)
-        chosen_items = choose_from_pool(item_pools[pool_id], count)
+
+        chosen_items = choose_from_pool(factory, item_pools[pool_id], count)
+
         for item in chosen_items:
             while True:
                 x = random.randint(1, width - 2)
                 y = random.randint(1, height - 2)
                 if dungeon.tiles[x, y] == tile_types.floor:
-                    item.spawn(dungeon, x, y)
+                    item.place(x, y, dungeon)
+                    dungeon.add_item(item, x, y)
                     break
 
     # Spawn direct items
     for item_def in metadata.get("items", []):
-        item = getattr(entity_factories, item_def["id"])
-        item.spawn(dungeon, item_def["x"], item_def["y"])
+        item = factory.create_item(item_def["id"])
+        item.place(item_def["x"], item_def["y"], dungeon)
+        dungeon.add_item(item, item_def["x"], item_def["y"])
 
     # Spawn monsters from pools
     for pool_def in metadata.get("monster_pools", []):
         pool_id = pool_def["pool_id"]
         count = pool_def.get("count", 1)
-        chosen_monsters = choose_from_pool(monster_pools[pool_id], count)
+
+        chosen_monsters = choose_from_pool(factory, monster_pools[pool_id], count)
+
         for monster in chosen_monsters:
             while True:
                 x = random.randint(1, width - 2)
                 y = random.randint(1, height - 2)
                 if dungeon.tiles[x, y] == tile_types.floor:
-                    monster.spawn(dungeon, x, y)
+                    dungeon.entities.add(monster)
+                    monster.place(x, y, dungeon)
                     break
 
     return dungeon

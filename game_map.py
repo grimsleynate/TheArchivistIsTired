@@ -69,9 +69,6 @@ class GameMap:
         """Add an item to a tile, stacking with like items."""
         stacks = self.items_at_location.setdefault((x, y), [])
 
-        # Ensure parent is this map
-        item.parent = self
-
         # Try to merge into existing stack
         for stack in stacks:
             if stack and stack[0].name == item.name and len(stack) < stack[0].max_stack:
@@ -80,6 +77,7 @@ class GameMap:
 
         # Otherwise create new stack
         stacks.append([item])
+        self.entities.add(item)
 
     def remove_item(self, item: Item, x: int, y: int) -> None:
         """Remove an item from tile stacks at (x, y)."""

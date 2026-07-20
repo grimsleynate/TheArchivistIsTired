@@ -55,7 +55,7 @@ class Inventory(BaseComponent):
         # Try stacking first
         stack = self.find_stack(item)
         if stack and len(stack) < stack[0].max_stack:
-            stack.append(item)
+            stack.append(item)  
             item.parent = self
             return True
 

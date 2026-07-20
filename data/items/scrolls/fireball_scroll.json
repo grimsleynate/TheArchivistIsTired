@@ -11,7 +11,7 @@
   "stack_max": 99,
   "components": {
     "consumable": {
-      "class": "AreaOfEffectConsumable",
+      "class": "AreaOfEffectDamageConsumable",
       "module": "components.consumable",
       "args": {
         "damage": 12,
@@ -19,7 +19,7 @@
     }
   },
   "spawn": {
-    "min_depth": 1,
+    "min_depth": 0,
     "max_depth": 10,
     "weight": 10
   }

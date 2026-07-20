@@ -7,14 +7,14 @@ import pickle
 import traceback
 from typing import Optional
 
+from data_loader import DataRepository
+from entity_factory import EntityFactory
 from map_loader import load_map
 import tcod #type: ignore
 
 import color
 from engine import Engine
-import entity_factories
 from game_map import GameWorld
-from procgen import generate_dungeon, generate_cave_dungeon
 import input_handlers
 
 
@@ -31,9 +31,13 @@ def new_game() -> Engine:
     room_min_size = 6
     max_rooms = 30
 
-    player = copy.deepcopy(entity_factories.player)
-
-    engine = Engine(player=player)
+    engine = Engine(player=None)
+    
+    repo = DataRepository("data/actors", "data/items")
+    engine.factory = EntityFactory(repo, engine)
+    
+    player = engine.factory.create_actor("actor.player")
+    engine.player = player
 
     """Generating a custom dungeon from txt_path, filled in with entities defined at json_path"""
     txt_path = "maps/test_dungeon.txt"
@@ -61,34 +65,13 @@ def new_game() -> Engine:
     # )
     # engine.game_world.generate_floor()
     
+    engine.game_map.entities.add(player)
+    player.parent = engine.game_map
     engine.update_fov()
 
     engine.message_log.add_message(
         "The Archivist looks up from endless shelves of war. \nHe welcomes you, tired that history keeps repeating its jokes.", color.welcome_text
     )
-
-    dagger = copy.deepcopy(entity_factories.dagger)
-    leather_armor = copy.deepcopy(entity_factories.leather_armor)
-    health_potion1 = copy.deepcopy(entity_factories.health_potion)
-    health_potion2 = copy.deepcopy(entity_factories.health_potion)
-    health_potion3 = copy.deepcopy(entity_factories.health_potion)
-    
-
-    dagger.parent = player.inventory
-    leather_armor.parent = player.inventory
-    health_potion1.parent = player.inventory
-    health_potion2.parent = player.inventory
-    health_potion3.parent = player.inventory
-
-    player.inventory.add_item(dagger)
-    player.equipment.toggle_equip(dagger, add_message=False)
-
-    player.inventory.add_item(leather_armor)
-    player.equipment.toggle_equip(leather_armor, add_message=False)
-    
-    player.inventory.add_item(health_potion1)
-    player.inventory.add_item(health_potion2)
-    player.inventory.add_item(health_potion3)
 
     return engine
 

@@ -161,6 +161,7 @@ class Item(Entity):
         color: Tuple[int, int, int] = (255, 255, 255),
         name: str = "<Unnamed>",
         max_stack: int = 1,
+        description: str = "",
         consumable: Optional[Consumable] = None,
         equippable: Optional[Equippable] = None,
     ):
