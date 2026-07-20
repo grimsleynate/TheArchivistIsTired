@@ -94,7 +94,7 @@ class DropItem(ItemAction):
     def perform(self) -> None:
         inventory = self.entity.inventory
 
-        # Find the stack containing this item
+        # Ensure the item is in the inventory
         for stack in inventory.slots:
             if self.item in stack:
                 break
@@ -105,14 +105,8 @@ class DropItem(ItemAction):
         if self.entity.equipment.item_is_equipped(self.item):
             self.entity.equipment.toggle_equip(self.item)
 
-        # Remove one item from the stack
-        stack.remove(self.item)
-        if not stack:
-            inventory.slots.remove(stack)
-
-        # Drop onto ground
+        # Let Inventory.drop handle removal and placement
         inventory.drop(self.item)
-
 
 
 class EquipAction(Action):

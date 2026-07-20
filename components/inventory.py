@@ -17,8 +17,8 @@ class Inventory(BaseComponent):
         self.slots: List[List[Item]] = []
 
     def drop(self, item: Item) -> None:
-        # Remove from inventory stack
-        for stack in self.slots:
+        # Remove from inventory stack (if still present)
+        for stack in list(self.slots):
             if item in stack:
                 stack.remove(item)
                 if not stack:
@@ -28,14 +28,22 @@ class Inventory(BaseComponent):
         # Clear old parent
         item.parent = None
 
-        # Place item on ground
-        item.place(self.parent.x, self.parent.y, self.gamemap)
+        # Prefer inventory.gamemap, fallback to parent.gamemap
+        gamemap = self.gamemap or getattr(self.parent, "gamemap", None)
 
-        # Add to tile stacks
-        if self.gamemap:
-            self.gamemap.add_item(item, self.parent.x, self.parent.y)
+        # Place item on ground if we have a gamemap
+        if gamemap is not None:
+            item.place(self.parent.x, self.parent.y, gamemap)
+            gamemap.add_item(item, self.parent.x, self.parent.y)
+        else:
+            # No gamemap available: set coords and leave gamemap None
+            item.x = self.parent.x
+            item.y = self.parent.y
+            item.gamemap = None
 
-        self.engine.message_log.add_message(f"You dropped the {item.name}.")
+        # Log the drop if engine available
+        if getattr(self, "engine", None):
+            self.engine.message_log.add_message(f"You dropped the {item.name}.")
 
     def find_stack(self, item: Item) -> Optional[List[Item]]:
         for stack in self.slots:

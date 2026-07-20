@@ -67,6 +67,10 @@ class Entity:
             return self.parent.gamemap
         return None
 
+    @gamemap.setter
+    def gamemap(self, value: Optional["GameMap"]):
+        # Accept either a GameMap instance or None
+        self.parent = value
 
     def spawn(self: T, gamemap: GameMap, x: int, y: int) -> T:
         """Spawn a copy of this instance at the given location."""
@@ -81,16 +85,23 @@ class Entity:
             
         return clone
 
-    def place(self, x: int, y: int, gamemap: Optional[GameMap] = None) -> None:
-        """Place this entitiy at a new location.  Handles moving across GameMaps."""
+    def place(self, x: int, y: int, gamemap):
+        # Remove from old gamemap if present
+        if getattr(self, "gamemap", None) is not None:
+            try:
+                self.gamemap.entities.remove(self)
+            except Exception:
+                pass
+
+        # Update coordinates and gamemap
         self.x = x
         self.y = y
-        if gamemap:
-            if hasattr(self, "parent"):  # Possibly uninitialized.
-                if self.parent is self.gamemap:
-                    self.gamemap.entities.remove(self) #type: ignore
-            self.parent = gamemap
+        self.gamemap = gamemap
+
+        # Add to new gamemap if provided
+        if gamemap is not None:
             gamemap.entities.add(self)
+
 
     def distance(self, x: int, y: int) -> float:
         """

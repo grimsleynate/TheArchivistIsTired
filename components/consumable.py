@@ -35,9 +35,11 @@ class Consumable(BaseComponent):
     def consume(self) -> None:
         """Remove the consumed item from its containing inventory."""
         entity = self.parent
-        inventory = entity.parent
-        if isinstance(inventory, components.inventory.Inventory):
-            inventory.items.remove(entity)
+        # inside components/consumable.py (or the action that consumes)
+        inventory = getattr(self.parent, "inventory", None)  # or however you reference the player's inventory
+        if inventory is not None:
+            inventory.remove_from_stack(self.parent)  # or inventory.remove_from_stack(item_entity)
+
 
 
 class ConfusionConsumable(Consumable):

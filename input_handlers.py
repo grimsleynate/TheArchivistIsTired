@@ -148,10 +148,19 @@ class EventHandler(BaseEventHandler):
             self.engine.message_log.add_message(exc.args[0], color.impossible)
             return False  # Skip enemy turn on exceptions.
 
-        self.engine.handle_enemy_turns()
+        # After performing the action, if the current handler has a parent, restore it.
+        # This closes modal handlers like the context menu and returns to inventory/loot.
+        current_handler = getattr(self, "event_handler", None)
+        if current_handler is not None and hasattr(current_handler, "parent") and current_handler.parent is not None:
+            # Switch back to the parent handler (inventory/loot)
+            # Note: if your code stores the active handler somewhere else, use that attribute.
+            self.event_handler = current_handler.parent
 
+        # Continue with normal turn advancement
+        self.engine.handle_enemy_turns()
         self.engine.update_fov()
         return True
+
 
     def ev_mousemotion(self, event: tcod.event.MouseMotion) -> None:
         if self.engine.game_map.in_bounds(event.tile.x, event.tile.y):
@@ -177,11 +186,34 @@ class AskUserEventHandler(EventHandler):
             return None
         return self.on_exit()
 
-    def ev_mousebuttondown(
-        self, event: tcod.event.MouseButtonDown
-    ) -> Optional[ActionOrHandler]:
-        """By default any mouse click exits this input handler."""
-        return self.on_exit()
+    def ev_mousemotion(self, event: tcod.event.MouseMotion) -> None:
+        if not hasattr(self, "row_bounds"):
+            return
+
+        mx, my = event.tile.x, event.tile.y
+
+        for i, (x1, y1, x2, y2) in enumerate(self.row_bounds):
+            if x1 <= mx < x2 and y1 == my:
+                if hasattr(self, "on_mouse_hover"):
+                    self.on_mouse_hover(i)
+                return
+
+        if hasattr(self, "on_mouse_hover"):
+            self.on_mouse_hover(None)
+
+    def ev_mousebuttondown(self, event: tcod.event.MouseButtonDown):
+        if not hasattr(self, "row_bounds"):
+            return None
+
+        mx, my = event.tile.x, event.tile.y
+
+        for i, (x1, y1, x2, y2) in enumerate(self.row_bounds):
+            if x1 <= mx < x2 and y1 == my:
+                if hasattr(self, "on_mouse_click"):
+                    return self.on_mouse_click(i)
+                return None
+
+        return None
 
     def on_exit(self) -> Optional[ActionOrHandler]:
         """Called when the user is trying to exit or cancel an action.
@@ -334,6 +366,14 @@ class PickupMenuHandler(AskUserEventHandler):
             fg=(255, 255, 255), bg=(0, 0, 0),
         )
 
+        self.row_bounds = []
+
+        for i, stack in enumerate(self.stacks):
+            row_y = y + 1 + i
+            row_x1 = x + 1
+            row_x2 = x + width - 1
+            self.row_bounds.append((row_x1, row_y, row_x2, row_y))
+
         for i, stack in enumerate(self.stacks):
             item = stack[0]
             count = len(stack)
@@ -420,45 +460,93 @@ class PickupMenuHandler(AskUserEventHandler):
 
         return super().ev_keydown(event)
 
+    def on_mouse_hover(self, index):
+        self.highlight_index = index
 
-class InventoryEventHandler(AskUserEventHandler):
+    def on_mouse_click(self, index):
+        stack = self.stacks[index]
+        if stack:
+            item = stack.pop()
+
+
+class InventoryEventHandler(AskUserEventHandler):  
     """This handler lets the user select an item.
 
     What happens then depends on the subclass.
     """
 
     TITLE = "<missing title>"
+    
+    def __init__(self, engine: Engine):
+        super().__init__(engine)
+        self.highlight_index: Optional[int] = None
+
+    def get_row_anchor(self, index: int) -> tuple[int, int, int]:
+        """
+        Return (row_x, row_y, row_width). If modal geometry isn't available yet,
+        return a centered fallback so the context menu still opens.
+        """
+        # If we have modal geometry, compute exact anchor
+        if hasattr(self, "console") and hasattr(self, "_modal_x"):
+            modal_x = self._modal_x
+            modal_y = self._modal_y
+            modal_width = self._modal_width
+
+            row_x = modal_x + 2                 # match your render offsets
+            row_y = modal_y + 2 + index         # match your render offsets
+            row_width = modal_width - 4
+            return row_x, row_y, row_width
+
+        # Fallback: center the menu on screen
+        screen_w = getattr(self, "console", None).width if hasattr(self, "console") else 80
+        screen_h = getattr(self, "console", None).height if hasattr(self, "console") else 25
+        fallback_w = min(30, screen_w - 4)
+        fallback_h = 6
+        center_x = max(0, (screen_w - fallback_w) // 2)
+        center_y = max(0, (screen_h - fallback_h) // 2)
+        return center_x, center_y, fallback_w
+
 
     def on_render(self, console: tcod.Console) -> None:
-        """Render an inventory menu, which displays the items in the inventory, and the letter to select them."""
         super().on_render(console)
-        number_of_stacks_in_inventory = len(self.engine.player.inventory.slots)
+        
+        self.console = console
 
-        height = number_of_stacks_in_inventory + 2
-        if height <= 3:
-            height = 3
+        inventory = self.engine.player.inventory
+        number_of_stacks = len(inventory.slots)
 
-        if self.engine.player.x <= 30:
-            x = 40
-        else:
-            x = 0
+        inv_width = int(console.width * 0.85)
+        inv_height = int(console.height * 0.85)
 
-        y = 0
-        width = len(self.TITLE) + 4
+        x = (console.width - inv_width) // 2
+        y = (console.height - inv_height) // 2
+        
+        self._modal_x = x
+        self._modal_y = y
+        self._modal_width = inv_width
+        self._modal_height = inv_height
 
         console.draw_frame(
             x=x,
             y=y,
-            width=width,
-            height=height,
+            width=inv_width,
+            height=inv_height,
             title=self.TITLE,
             clear=True,
             fg=(255, 255, 255),
             bg=(0, 0, 0),
         )
 
-        if number_of_stacks_in_inventory > 0:
-            for i, stack in enumerate(self.engine.player.inventory.slots):
+        self.row_bounds = []
+        
+        for i, stack in enumerate(inventory.slots):
+            row_y = y + 2 + i
+            row_x1 = x + 2
+            row_x2 = x + inv_width - 2
+            self.row_bounds.append((row_x1, row_y, row_x2, row_y))
+
+        if number_of_stacks > 0:
+            for i, stack in enumerate(inventory.slots):
                 item_key = chr(ord("a") + i)
                 item = stack[0]
                 count = len(stack)
@@ -471,30 +559,89 @@ class InventoryEventHandler(AskUserEventHandler):
                     item_string = f"({item_key}) {item.name}"
 
                 if is_equipped:
-                    item_string = f"{item_string} (E)"
+                    item_string += " (E)"
 
-                console.print(x + 1, y + i + 1, item_string)
+                fg = (255, 255, 255)
+                bg = (50, 50, 150) if self.highlight_index == i else (0, 0, 0)
+
+                console.print(x + 2, y + 2 + i, item_string, fg=fg, bg=bg)
         else:
-            console.print(x + 1, y + 1, "(Empty)")
+            console.print(x + 2, y + 2, "(Empty)")
 
     def ev_keydown(self, event: tcod.event.KeyDown) -> Optional[ActionOrHandler]:
-        player = self.engine.player
         key = event.sym
-        index = key - tcod.event.K_a
 
+        if key == tcod.event.K_DOWN:
+            return self.move_highlight(1)
+
+        if key == tcod.event.K_UP:
+            return self.move_highlight(-1)
+
+        if key == tcod.event.K_RETURN:
+            return self.activate_highlighted_item()
+        
+        if key == tcod.event.K_ESCAPE:
+            return self.on_exit()
+
+        index = key - tcod.event.K_a
         if 0 <= index <= 26:
             try:
-                stack = player.inventory.slots[index]
+                stack = self.engine.player.inventory.slots[index]
                 selected_item = stack[0]
             except IndexError:
                 self.engine.message_log.add_message("Invalid entry.", color.invalid)
                 return None
             return self.on_item_selected(selected_item)
-        return super().ev_keydown(event)
+
+        return None
+    
+        if self.highlight_index is None:
+            return None
+
+        slots = self.engine.player.inventory.slots
+        if not slots:
+            return None
+
+        item = slots[self.highlight_index][0]
+        return self.on_item_selected(item)
+    
+    def on_exit(self):
+        # Return to main game handler
+        return MainGameEventHandler(self.engine)
 
     def on_item_selected(self, item: Item) -> Optional[ActionOrHandler]:
         """Called when the user selects a valid item."""
         raise NotImplementedError()
+    
+    def move_highlight(self, direction: int) -> None:
+        slots = self.engine.player.inventory.slots
+        if not slots:
+            return None
+
+        if self.highlight_index is None:
+            self.highlight_index = 0
+        else:
+            self.highlight_index = (self.highlight_index + direction) % len(slots)
+
+        return None
+
+    def activate_highlighted_item(self) -> Optional[ActionOrHandler]:
+        if self.highlight_index is None:
+            return None
+
+        slots = self.engine.player.inventory.slots
+        if not slots:
+            return None
+
+        item = slots[self.highlight_index][0]
+        return self.on_item_selected(item)
+
+    def on_mouse_hover(self, index):
+        self.highlight_index = index
+
+    def on_mouse_click(self, index):
+        item = self.engine.player.inventory.slots[index][0]
+        return self.on_item_selected(item)
 
 
 class InventoryActivateHandler(InventoryEventHandler):
@@ -503,13 +650,308 @@ class InventoryActivateHandler(InventoryEventHandler):
     TITLE = "Select an item to use"
 
     def on_item_selected(self, item: Item) -> Optional[ActionOrHandler]:
-        if item.consumable:
-            # Return the action for the selected item.
-            return item.consumable.get_action(self.engine.player)
-        elif item.equippable:
-            return actions.EquipAction(self.engine.player, item)
+        try:
+            index = next(i for i, stack in enumerate(self.engine.player.inventory.slots) if stack and stack[0] is item)
+        except StopIteration:
+            # fallback: open centered if we can't find the row
+            return ContextMenuHandler(self.engine, item, anchor_x=0, anchor_y=0, anchor_width=10, parent=self)
+
+        # compute anchor using stored modal geometry
+        row_x, row_y, row_width = self.get_row_anchor(index)
+
+        return ContextMenuHandler(self.engine, item, anchor_x=row_x, anchor_y=row_y, anchor_width=row_width, parent=self)
+        
+        
+class ContextMenuHandler(AskUserEventHandler):
+    """Context menu anchored to an item row.
+
+    anchor_x, anchor_y are console coordinates of the row that opened the menu.
+    anchor_width is the width of that row (so we can place the menu to the right).
+    """
+
+    PADDING_X = 2
+    PADDING_Y = 1
+
+    def __init__(self, engine, item: Item, anchor_x: int, anchor_y: int, anchor_width: int, parent: Optional[EventHandler] = None):
+        super().__init__(engine)
+        self.item = item
+        self.anchor_x = anchor_x
+        self.anchor_y = anchor_y
+        self.anchor_width = anchor_width
+        self.parent = parent
+
+        # highlight index for keyboard/mouse
+        self.highlight_index = None
+
+        # computed each render
+        self.row_bounds = []
+        self.console = None
+
+    def get_options(self):
+        options = []
+        if self.item.consumable:
+            options.append(("(u)se", self.use_item))
+        if self.item.equippable:
+            options.append(("(e)quip/unequip", self.toggle_equip))
+        options.append(("(d)rop", self.drop_item))
+        options.append(("(l)ook", self.inspect_item))
+        options.append(("Cancel", self.close_menu))
+        return options
+
+    def on_render(self, console: tcod.Console):
+        # Render the parent first so the context menu is layered on top
+        if self.parent is not None:
+            try:
+                # Parent should implement on_render(console)
+                self.parent.on_render(console)
+            except Exception:
+                # If parent rendering fails, fall back to engine-level render
+                super().on_render(console)
+
+        # store console for mouse handlers
+        self.console = console
+
+        self._options = options = self.get_options()
+        if not options:
+            return
+
+        # compute width from longest label and item name
+        labels = [label for label, _ in options]
+        longest_label = max(labels, key=len)
+        content_width = max(len(longest_label), len(self.item.name))
+
+        menu_width = content_width + self.PADDING_X * 2
+        menu_height = len(options) + self.PADDING_Y * 2 + 1  # +1 for title row
+
+        # try to place to the right of the anchor
+        preferred_x = self.anchor_x + self.anchor_width + 1
+        screen_w = console.width
+        screen_h = console.height
+
+        if preferred_x + menu_width <= screen_w:
+            x = preferred_x
         else:
+            left_x = self.anchor_x - menu_width - 1
+            if left_x >= 0:
+                x = left_x
+            else:
+                x = max(0, screen_w - menu_width)
+
+        # vertical placement: align top with anchor row if possible, clamp to screen
+        y = self.anchor_y - (self.PADDING_Y + 1)
+        if y < 0:
+            y = 0
+        if y + menu_height > screen_h:
+            y = max(0, screen_h - menu_height)
+
+        # draw frame (this will overlay the parent)
+        console.draw_frame(
+            x=x, y=y, width=menu_width, height=menu_height,
+            title=self.item.name, clear=True,
+            fg=(255, 255, 255), bg=(0, 0, 0),
+        )
+
+        # draw options and build row bounds
+        self.row_bounds = []
+        for i, (label, _) in enumerate(options):
+            row_y = y + self.PADDING_Y + 1 + i  # +1 to leave a line after title
+            row_x = x + self.PADDING_X
+            bg = (50, 50, 150) if self.highlight_index == i else (0, 0, 0)
+            console.print(row_x, row_y, label.ljust(content_width), fg=(255,255,255), bg=bg)
+
+            # bounds: x1, y1, x2 (exclusive), y2
+            self.row_bounds.append((row_x, row_y, row_x + content_width, row_y + 1))
+
+    # keyboard handling
+    def ev_keydown(self, event: tcod.event.KeyDown):
+        key = event.sym
+
+        # Close
+        if key == tcod.event.K_ESCAPE:
+            return self.close_menu()
+
+        # Navigation
+        if key == tcod.event.K_UP:
+            return self.move_highlight(-1)
+        if key == tcod.event.K_DOWN:
+            return self.move_highlight(1)
+        if key == tcod.event.K_RETURN:
+            return self.activate_highlighted_item()
+
+        # Ensure we use the same option list that was rendered this frame
+        options = getattr(self, "_options", None)
+        if options is None:
+            options = self.get_options()
+
+        # Helper: find option index by label prefix (case-insensitive)
+        def find_option_index(prefix: str) -> int | None:
+            lower = prefix.lower()
+            for i, (label, _) in enumerate(options):
+                if label.lower().startswith(lower):
+                    return i
             return None
+
+        # Letter mappings (only these are allowed)
+        if key == tcod.event.K_u:  # Use
+            idx = find_option_index("(u)se")
+            if idx is not None:
+                self.highlight_index = idx
+                _, action = options[idx]
+                return action()
+            return None
+
+        if key == tcod.event.K_e:  # Equip / Unequip
+            idx = find_option_index("(e)quip/unequip")
+            if idx is not None:
+                self.highlight_index = idx
+                _, action = options[idx]
+                return action()
+            return None
+
+        if key == tcod.event.K_d:  # Drop
+            idx = find_option_index("(d)rop")
+            if idx is not None:
+                self.highlight_index = idx
+                _, action = options[idx]
+                return action()
+            return None
+
+        if key == tcod.event.K_l:  # Look / Inspect
+            idx = find_option_index("(l)ook")
+            if idx is not None:
+                self.highlight_index = idx
+                _, action = options[idx]
+                return action()
+            return None
+
+        # If we get here, the key is not handled — consume it (do nothing)
+        return None
+
+    def _execute_option_and_close(self, index):
+        """Execute the option at index, then close the context menu (return parent handler)."""
+        options = getattr(self, "_options", None)
+        if options is None:
+            options = self.get_options()
+
+        if not (0 <= index < len(options)):
+            return None
+
+        _, action_callable = options[index]
+
+        # Call the option to get either an Action or an EventHandler or None
+        result = action_callable()
+
+        # If the callable returned an EventHandler, switch to it
+        if isinstance(result, EventHandler):
+            return result
+
+        # If the callable returned an Action-like object, ask the engine to execute it.
+        # Many engines expose engine.handle_action(action) or engine.perform_action(action).
+        # Try common method names defensively.
+        if result is not None:
+            if hasattr(self.engine, "handle_action"):
+                # typical pattern: engine.handle_action(action) executes it and advances the game
+                self.engine.handle_action(result)
+            elif hasattr(self.engine, "perform_action"):
+                self.engine.perform_action(result)
+            else:
+                # Fallback: if your engine expects the handler to return the action,
+                # return the action so the engine executes it. But we also want to close the menu.
+                # In that case, return the action (so it executes) — the engine will keep the current handler,
+                # so we also return the parent handler to switch back. If your engine cannot accept
+                # a tuple, you must implement handle_action on the engine.
+                return result
+
+        # After executing the action, return to the parent handler (inventory/loot)
+        return self.parent or InventoryActivateHandler(self.engine)
+
+    def move_highlight(self, direction: int):
+        options = self.get_options()
+        count = len(options)
+        if count == 0:
+            return None
+
+        if self.highlight_index is None:
+            self.highlight_index = 0
+        else:
+            self.highlight_index = (self.highlight_index + direction) % count
+        return None
+    
+    def _get_option_result(self, index):
+        options = getattr(self, "_options", None)
+        if options is None:
+            options = self.get_options()
+        if not (0 <= index < len(options)):
+            return None
+        _, action_callable = options[index]
+        return action_callable()
+
+    def on_mouse_click(self, index):
+        if index is None:
+            return self.close_menu()
+        return self._get_option_result(index)
+    
+    def on_mouse_hover(self, index):
+        """Called by the mouse dispatcher with the row index or None.
+
+        Sets highlight_index only when the index maps to a rendered option.
+        """
+        if index is None:
+            self.highlight_index = None
+            return None
+
+        options = getattr(self, "_options", None) or self.get_options()
+        if 0 <= index < len(options):
+            self.highlight_index = index
+        else:
+            self.highlight_index = None
+        return None
+
+    # Optional: call this once after the first render to immediately sync highlight
+    def sync_hover_from_mouse(self, mx: int = None, my: int = None):
+        """Set highlight_index from current mouse tile coordinates.
+
+        If mx/my are omitted, try to read current mouse state via tcod (if available).
+        Call this after on_render has built self.row_bounds.
+        """
+        try:
+            if mx is None or my is None:
+                state = tcod.event.get_mouse_state()
+                mx, my = state.tile.x, state.tile.y
+        except Exception:
+            # tcod API may differ in your loop; caller can pass mx,my explicitly
+            return
+
+        for i, (x1, y1, x2, y2) in enumerate(self.row_bounds):
+            if x1 <= mx < x2 and y1 <= my < y2:
+                self.highlight_index = i
+                return
+        self.highlight_index = None
+
+
+    def activate_highlighted_item(self):
+        if self.highlight_index is None:
+            return None
+        return self._get_option_result(self.highlight_index)
+
+    # actions
+    def use_item(self):
+        if self.item.consumable:
+            return self.item.consumable.get_action(self.engine.player)
+        return self.close_menu()
+
+    def toggle_equip(self):
+        return actions.EquipAction(self.engine.player, self.item)
+
+    def drop_item(self):
+        return actions.DropItem(self.engine.player, self.item)
+
+    def inspect_item(self):
+        self.engine.message_log.add_message(self.item.description)
+        return None
+
+    def close_menu(self):
+        return InventoryActivateHandler(self.engine)
 
 
 class InventoryDropHandler(InventoryEventHandler):
@@ -520,7 +962,6 @@ class InventoryDropHandler(InventoryEventHandler):
     def on_item_selected(self, item: Item) -> Optional[ActionOrHandler]:
         """Drop this item."""
         return actions.DropItem(self.engine.player, item)
-
 
 
 class SelectIndexHandler(AskUserEventHandler):
