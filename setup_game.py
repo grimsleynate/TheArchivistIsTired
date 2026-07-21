@@ -117,25 +117,78 @@ class MainMenu(input_handlers.BaseEventHandler):
         )
         console.print(
             console.width // 2,
-            console.height - 2,
+            console.height - 4,
             "By Nathaniel Grimsley \n& Princess Liliana",
-            fg=color.menu_title,
+            fg=color.white,
             alignment=tcod.CENTER,
         )
 
-        menu_width = 24
-        for i, text in enumerate(
-            ["[N] Play a new game", "[C] Continue last game", "[Q] Quit"]
-        ):
-            console.print(
-                console.width // 2,
-                console.height // 2 - 2 + i,
-                text.ljust(menu_width),
-                fg=color.menu_text,
-                bg=color.black,
-                alignment=tcod.CENTER,
-                bg_blend=tcod.BKGND_ALPHA(64),
-            )
+                # --- Menu block: clear, translucent fill, colored action keys ---
+        entries = ["(n)ew game", "(c)ontinue", "(q)uit"]
+        menu_width = 16
+        spacing = 2
+        padding_top = 1
+        padding_bottom = 1
+
+        box_width = menu_width
+        box_height = padding_top + padding_bottom + (len(entries) - 1) * spacing + 1
+
+        # Position the box below the title
+        title_y = console.height // 2 - 4
+        box_x = (console.width - box_width) // 2
+        box_y = title_y + 2
+
+        # 1) Overwrite underlying semigraphics with real spaces so nothing bleeds through
+        console.draw_rect(
+            x=box_x,
+            y=box_y,
+            width=box_width,
+            height=box_height,
+            ch=ord(" "),           # overwrite glyphs with space
+            fg=color.menu_text,
+            bg=color.black,
+        )
+
+        # 2) Draw a translucent fill on top (ch=0 so only background blending is applied)
+        console.draw_rect(
+            x=box_x,
+            y=box_y,
+            width=box_width,
+            height=box_height,
+            ch=0,
+            fg=color.menu_text,
+            bg=color.black,
+            bg_blend=tcod.BKGND_ALPHA(120),  # tweak alpha 0-255
+        )
+
+        # Helper to print an entry with a colored action key prefix like "(n)"
+        def _print_menu_entry(cx: int, y: int, entry: str, key_color, text_color):
+            if entry.startswith("(") and ")" in entry:
+                end = entry.index(")") + 1
+                key = entry[:end]
+                rest = entry[end:]
+            else:
+                key = ""
+                rest = entry
+            combined = key + rest
+            start_x = cx - (len(combined) // 2)
+            if key:
+                console.print(start_x, y, key, fg=key_color, bg=color.black)
+                console.print(start_x + len(key), y, rest, fg=text_color, bg=color.black)
+            else:
+                console.print(start_x, y, rest, fg=text_color, bg=color.black)
+
+        # Colors for keys
+        default_key_color = color.menu_title
+        quit_key_color = color.red if hasattr(color, "red") else (255, 80, 80)
+
+        # Print each entry (no bg_blend here; the translucent layer is already drawn)
+        for i, text in enumerate(entries):
+            y = box_y + padding_top + i * spacing
+            key_col = quit_key_color if text.lower().startswith("(q)") else default_key_color
+            _print_menu_entry(box_x + box_width // 2, y, text, key_col, color.menu_text)
+
+
 
     def ev_keydown(
         self, event: tcod.event.KeyDown

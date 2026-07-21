@@ -1,7 +1,7 @@
 {
   "id": "oceankin",
   "name": "Oceankin",
-  "description": "A marine humanoid people adapted to life in and near the sea.",
+  "description": "Oceankin are a broad, ocean‑born people about whom surprisingly little is known. So few wander ashore that most coastal folk treat them like a curious footnote in sailors’ tales rather than a people. Fiercely curious and fond of risk, they find equal joy in prying treasure from wrecks and tracking quarry through kelp. Their encyclopedic knowledge of currents and wreckage makes them invaluable allies for any ship‑looter. Their lives are threaded with strict traditions and elaborate ceremonies, especially where religion touches the tide.",
   "tags": ["aquatic", "amphibious"],
   "attributes": { "STR": 0, "DEX": 1, "CON": 1, "INT": 0, "WIS": 0, "CHA": -4 },
   "starting_equipment": ["item.tide_knife"],

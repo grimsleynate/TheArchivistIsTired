@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from inspect import stack
 import os
+import textwrap
 
 from typing import Callable, Dict, Optional, Tuple, TYPE_CHECKING, Union
 
@@ -1639,21 +1640,45 @@ class RaceSelectHandler(AskUserEventHandler):
         box_w = max(len(l) for l in labels) + self.PADDING_X * 2 + 4
         box_h = len(labels) + self.PADDING_Y * 2 + 4
 
-        # Center horizontally, near top with margin
         x = max(0, (console.width - box_w) // 2)
         y = self.TOP_MARGIN
 
-        # Draw selection frame
+        # draw frame without title (we'll print a safe centered title manually)
         console.draw_frame(
             x=x,
             y=y,
             width=box_w,
             height=box_h,
-            title=title,
+            title=None,
             clear=True,
             fg=(255, 255, 255),
             bg=(0, 0, 0),
         )
+
+        # prepare and clip the title so it never overflows the frame
+        raw_title = title  # "Choose Race" or "Choose Subrace"
+        inner_width = max(0, box_w - 2)  # space inside vertical borders
+
+        if len(raw_title) > inner_width:
+            # clip with ellipsis if there's room, otherwise hard clip
+            if inner_width > 3:
+                title_text = raw_title[: inner_width - 3] + "..."
+            else:
+                title_text = raw_title[:inner_width]
+        else:
+            title_text = raw_title
+
+        # print the title centered on the top border (overwrites the top border cells cleanly)
+        title_x = x + box_w // 2
+        console.print(
+            title_x,
+            y,
+            title_text,
+            fg=(255, 255, 255),
+            bg=(0, 0, 0),
+            alignment=tcod.CENTER,
+        )
+
 
         # Draw options
         for i, label in enumerate(labels):
@@ -1664,41 +1689,87 @@ class RaceSelectHandler(AskUserEventHandler):
             key_char = chr(ord("a") + i)
             console.print(row_x, row_y, f"({key_char}) {label}", fg=(255, 255, 255), bg=bg)
 
-        # Description box below
-        desc_x = 2 #2 tile padding left and right
-        desc_y = y + box_h + self.DESC_GAP #top padding
-        desc_w = console.width - 4 #-4 for the two-tile padding on each side.
-        desc_h = 10  # enough for name + description + stats
+        # --- Description box layout (top-left at desc_x, desc_y) ---
+        desc_x = 2
+        desc_y = y + box_h + self.DESC_GAP
+        desc_w = console.width - 4
+        desc_h = 10  # base minimum height; will grow if needed
 
+        # Padding inside the box
+        pad_x = 2
+        pad_y_top = 1
+        pad_y_bottom = 1
+        between_desc_and_stats = 1  # blank rows between wrapped desc and stats
+
+        # Defensive getters for current object (race or subrace)
+        if self.phase == "race":
+            obj = self.races[self.highlight_index]
+        else:
+            race = self.races[self.selected_race_index]
+            subs = getattr(race, "subraces", [])
+            obj = subs[self.highlight_index] if subs else None
+
+        # Prepare text pieces
+        name = getattr(obj, "name", "Unknown") if obj else "Unknown"
+        desc_text = getattr(obj, "description", "(no description)") if obj else "(no description)"
+        attrs = getattr(obj, "attributes", None) if obj else None
+
+        # Compute wrapped description lines to know required height
+        wrap_width = max(10, desc_w - pad_x * 2)  # ensure positive width
+        desc_lines = textwrap.wrap(desc_text, width=wrap_width)
+
+        # Estimate attribute block height.
+        # format_attributes_colored prints attributes in a single horizontal row in your current helper.
+        # If you later change that helper to wrap attributes vertically, update this estimate accordingly.
+        attrs_height = 1 if attrs else 0
+
+        # Total content height inside the box (name + desc + gap + attrs)
+        content_height = 1 + len(desc_lines) + between_desc_and_stats + attrs_height
+
+        # Required box height = top padding + content + bottom padding
+        required_box_h = pad_y_top + content_height + pad_y_bottom
+
+        # If the current desc_h is too small, grow it downward by increasing desc_h
+        if required_box_h > desc_h:
+            desc_h = required_box_h
+
+        # Draw the frame (clear=True so interior is blank)
         console.draw_frame(
             x=desc_x,
             y=desc_y,
             width=desc_w,
             height=desc_h,
             title="Description",
-            clear=False,
+            clear=True,
             fg=(255, 255, 255),
             bg=(0, 0, 0),
         )
 
-        # Fill description based on phase + highlight
-        if self.phase == "race":
-            race = self.races[self.highlight_index]
-            console.print(desc_x + 2, desc_y + 1, race.name, fg=(200, 200, 255))
-            console.print(desc_x + 2, desc_y + 2, race.description, fg=(180, 180, 180))
-            
-            if hasattr(race, "attributes"):
-                format_attributes_colored(console, desc_x + 2, desc_y + 3, race.attributes)
-        else:
-            race = self.races[self.selected_race_index]
-            subraces = getattr(race, "subraces", [])
-            if subraces:
-                sub = subraces[self.highlight_index]
-                console.print(desc_x + 2, desc_y + 1, sub.name, fg=(200, 200, 255))
-                console.print(desc_x + 2, desc_y + 2, sub.description, fg=(180, 180, 180))    
-                
-                if hasattr(sub, "attributes"):
-                    format_attributes_colored(console, desc_x + 2, desc_y + 3, sub.attributes)
+        # Fill interior with spaces to remove semigraphic artifacts (optional but safe)
+        console.draw_rect(
+            x=desc_x + 1,
+            y=desc_y + 1,
+            width=desc_w - 2,
+            height=desc_h - 2,
+            ch=ord(" "),
+            fg=(200, 200, 200),
+            bg=(0, 0, 0),
+        )
+
+        # Print name (one line) — left aligned with padding
+        name_y = desc_y + pad_y_top
+        console.print(desc_x + pad_x, name_y, name, fg=(200, 200, 255))
+
+        # Print wrapped description lines under the name
+        for i, line in enumerate(desc_lines):
+            console.print(desc_x + pad_x, name_y + 1 + i, line, fg=(180, 180, 180))
+
+        # Compute where stats should start (just below the wrapped description + gap)
+        stats_start_y = name_y + 1 + len(desc_lines) + between_desc_and_stats
+
+        # Print attributes using your helper, left aligned inside the box
+        if attrs:
+            format_attributes_colored(console, desc_x + pad_x, stats_start_y, attrs)
 
     def ev_keydown(self, event: tcod.event.KeyDown):
         from setup_game import MainMenu
