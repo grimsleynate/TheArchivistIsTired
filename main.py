@@ -29,7 +29,7 @@ def main() -> None:
         screen_width,
         screen_height,
         tileset=tileset,
-        sdl_window_flags=1,
+        #sdl_window_flags=1,
         title="The Archivist Is Tired",
         vsync=True,
     ) as context:

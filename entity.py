@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import copy
 import math
-from typing import Optional, Tuple, Type, TypeVar, TYPE_CHECKING, Union
+from typing import Dict, Optional, Set, Tuple, Type, TypeVar, TYPE_CHECKING, Union
 
 from render_order import RenderOrder
 
@@ -44,6 +44,7 @@ class Entity:
         self.char = char
         self.color = color
         self.name = name
+        self.tags: set[str] = set()
         self.blocks_movement = blocks_movement
         self.render_order = render_order
         self.max_stack = max_stack
@@ -113,6 +114,17 @@ class Entity:
         # Move the entity by a given amount
         self.x += dx
         self.y += dy
+        
+    # Tag helpers (available on all Entities)
+    def add_tag(self, tag: str) -> None:
+        self.tags.add(tag)
+
+    def remove_tag(self, tag: str) -> None:
+        self.tags.discard(tag)
+
+    def has_tag(self, tag: str) -> bool:
+        return tag in self.tags
+
 
 
 class Actor(Entity):
@@ -142,24 +154,58 @@ class Actor(Entity):
             render_order=RenderOrder.ACTOR,
         )
 
-        self.ai: Optional[BaseAI] = ai_cls(self)
+        # AI may be optional in some templates
+        self.ai: Optional[BaseAI] = ai_cls(self) if ai_cls is not None else None
 
-        self.equipment: Equipment = equipment
-        self.equipment.parent = self
+        # Components may be missing in malformed data; attach only if present
+        self.equipment: Optional[Equipment] = equipment
+        if self.equipment is not None:
+            self.equipment.parent = self
 
-        self.fighter = fighter
-        self.fighter.parent = self
+        self.fighter: Optional[Fighter] = fighter
+        if self.fighter is not None:
+            self.fighter.parent = self
 
-        self.inventory = inventory
-        self.inventory.parent = self
+        self.inventory: Optional[Inventory] = inventory
+        if self.inventory is not None:
+            self.inventory.parent = self
 
-        self.level = level
-        self.level.parent = self
+        self.level: Optional[Level] = level
+        if self.level is not None:
+            self.level.parent = self
+
+        self.race_id: Optional[str] = None
+        self.subrace_id: Optional[str] = None
+        
+        self.base_attributes: Dict[str, int] = {"STR": 10, "DEX": 10, "CON": 10, "INT": 10, "WIS": 10, "CHA": 10}
+        
+        self.tags: Set[str] = set()
 
     @property
     def is_alive(self) -> bool:
         """Returns True as long as this actor can perform actions."""
         return bool(self.ai)
+    
+    def add_tag(self, tag: str) -> None:
+        self.tags.add(tag)
+
+    def remove_tag(self, tag: str) -> None:
+        self.tags.discard(tag)
+
+    def has_tag(self, tag: str) -> bool:
+        return tag in self.tags
+
+    def apply_attribute_modifiers(self, modifiers: Dict[str, int]) -> None:
+        """
+        Add modifiers into base_attributes (used at creation to apply race/subrace).
+        This mutates base_attributes so future calculations use the merged values.
+        """
+        for k, v in modifiers.items():
+            self.base_attributes[k] = self.base_attributes.get(k, 0) + int(v)
+
+    def get_effective_attribute(self, key: str) -> int:
+        """Return the current effective attribute (base + any other sources if you add them later)."""
+        return self.base_attributes.get(key, 0)
 
 
 class Item(Entity):

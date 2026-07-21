@@ -1,11 +1,10 @@
 {
   "common_item": [
-    {"id": "item.health_potion", "weight": 50},
-    {"id": "item.dagger", "weight": 20},
-    {"id": "item.confusion_scroll", "weight": 10}
+    {"id": "item.tide_knife", "weight": 50},
+    {"id": "item.coral_trident", "weight": 20}
   ],
   "uncommon_item": [
-    {"id": "item.sword", "weight": 15},
-    {"id": "item.chain_mail", "weight": 5}
+    {"id": "item.tide_knife", "weight": 20},
+    {"id": "item.coral_trident", "weight": 50}
   ]
 }

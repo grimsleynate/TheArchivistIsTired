@@ -8,7 +8,7 @@
   "icon": "crude_sword.png",
   "description": "A sword, slightly better than your other options.",
   "rarity": "common",
-  "stack_max": 99,
+  "max_stack": 99,
   "components": {
     "equippable": {
       "class": "Sword",

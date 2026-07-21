@@ -8,7 +8,7 @@
   "icon": "lightning_scroll.png",
   "description": "Calls lightning down from the heavens to smite whatever is unlucky enough to stand in your way.",
   "rarity": "common",
-  "stack_max": 99,
+  "max_stack": 99,
   "components": {
     "consumable": {
       "class": "LightningDamageConsumable",

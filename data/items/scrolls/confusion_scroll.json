@@ -8,7 +8,7 @@
   "icon": "confusion_scroll.png",
   "description": "Causes one target to become confused for a short time.",
   "rarity": "common",
-  "stack_max": 99,
+  "max_stack": 99,
   "components": {
     "consumable": {
       "class": "ConfusionConsumable",

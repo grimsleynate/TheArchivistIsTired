@@ -26,18 +26,6 @@ max_monsters_by_floor = [
     (6, 5),
 ]
 
-item_chances: Dict[int, List[Tuple[str, int]]] = {
-    0: [("item.health_potion", 35)],
-    2: [("item.confusion_scroll", 10)],
-    4: [("item.lightning_scroll", 25), ("item.sword", 5)],
-    6: [("item.fireball_scroll", 25), ("item.chain_mail", 15)],
-}
-
-enemy_chances: Dict[int, List[Tuple[str, int]]] = {
-    0: [("actor.orc", 80)],
-    3: [("actor.troll", 15)],
-}
-
 
 def get_max_value_for_floor(
     max_value_by_floor: List[Tuple[int, int]], floor: int

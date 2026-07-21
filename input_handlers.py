@@ -3,7 +3,7 @@ from __future__ import annotations
 from inspect import stack
 import os
 
-from typing import Callable, Optional, Tuple, TYPE_CHECKING, Union
+from typing import Callable, Dict, Optional, Tuple, TYPE_CHECKING, Union
 
 import tcod
 
@@ -225,48 +225,269 @@ class AskUserEventHandler(EventHandler):
 
 class CharacterScreenEventHandler(AskUserEventHandler):
     TITLE = "Character Information"
+    MARGIN = 4
+
+    STAT_ORDER = ["STR", "DEX", "CON", "INT", "WIS", "CHA"]
+    STAT_FULLNAME = {
+        "STR": "Strength",
+        "DEX": "Dexterity",
+        "CON": "Constitution",
+        "INT": "Intelligence",
+        "WIS": "Wisdom",
+        "CHA": "Charisma",
+    }
 
     def on_render(self, console: tcod.Console) -> None:
         super().on_render(console)
 
-        if self.engine.player.x <= 30:
-            x = 40
-        else:
-            x = 0
+        # Full-screen minus margin
+        x = self.MARGIN
+        y = self.MARGIN
+        width = console.width - (self.MARGIN * 2)
+        height = console.height - (self.MARGIN * 2)
 
-        y = 0
-
-        width = len(self.TITLE) + 4
-
+        # Draw frame
         console.draw_frame(
             x=x,
             y=y,
             width=width,
-            height=7,
+            height=height,
             title=self.TITLE,
             clear=True,
-            fg=(255, 255, 255),
-            bg=(0, 0, 0),
+            fg=color.menu_title,
+            bg=color.black,
         )
 
-        console.print(
-            x=x + 1, y=y + 1, string=f"Level: {self.engine.player.level.current_level}"
-        )
-        console.print(
-            x=x + 1, y=y + 2, string=f"XP: {self.engine.player.level.current_xp}"
-        )
-        console.print(
-            x=x + 1,
-            y=y + 3,
-            string=f"XP for next Level: {self.engine.player.level.experience_to_next_level}",
-        )
+        inner_x = x + 2
+        inner_y = y + 2
+        line = inner_y
 
-        console.print(
-            x=x + 1, y=y + 4, string=f"Attack: {self.engine.player.fighter.power}"
-        )
-        console.print(
-            x=x + 1, y=y + 5, string=f"Defense: {self.engine.player.fighter.defense}"
-        )
+        player = self.engine.player
+
+        # --- Header: Name, Race, Subrace ------------------------------------
+        name = getattr(player, "name", "Unknown")
+        race_name = self._resolve_name(getattr(player, "race", None), getattr(player, "race_id", None))
+        subrace_name = self._resolve_name(getattr(player, "subrace", None), getattr(player, "subrace_id", None))
+
+        console.print(inner_x, line, f"{name}", fg=color.menu_text)
+        line += 1
+        console.print(inner_x, line, f"Race: {race_name}", fg=color.menu_text)
+        line += 1
+        if subrace_name:
+            console.print(inner_x, line, f"Subrace: {subrace_name}", fg=color.menu_text)
+            line += 1
+
+        # --- Level / XP / Combat stats --------------------------------------
+        # Keep these near the top-left
+        lvl = getattr(player, "level", None)
+        if lvl:
+            try:
+                lvl_str = f"Level: {lvl.current_level}  XP: {lvl.current_xp}  Next: {lvl.experience_to_next_level}"
+            except Exception:
+                lvl_str = f"Level: {getattr(lvl, 'current_level', '?')}"
+            console.print(inner_x, line, lvl_str, fg=color.menu_text)
+            line += 1
+
+        # Attack / Defense
+        try:
+            atk = player.fighter.power
+            df = player.fighter.defense
+            console.print(inner_x, line, f"Attack: {atk}   Defense: {df}", fg=color.menu_text)
+            line += 2
+        except Exception:
+            line += 1
+
+        # --- Stats table header ----------------------------------------------
+        stats_x = inner_x
+        stats_y = line
+        col_widths = (18, 8, 8, 8, 8)  # label, base, mod, total, prof
+        # Header row
+        console.print(stats_x, stats_y, "Attribute".ljust(col_widths[0]), fg=color.menu_title)
+        console.print(stats_x + col_widths[0], stats_y, "Base".rjust(col_widths[1]), fg=color.menu_title)
+        console.print(stats_x + col_widths[0] + col_widths[1], stats_y, "Mod".rjust(col_widths[2]), fg=color.menu_title)
+        console.print(stats_x + col_widths[0] + col_widths[1] + col_widths[2], stats_y, "Total".rjust(col_widths[3]), fg=color.menu_title)
+        console.print(stats_x + col_widths[0] + col_widths[1] + col_widths[2] + col_widths[3], stats_y, "Prof".rjust(col_widths[4]), fg=color.menu_title)
+        stats_y += 1
+
+        # --- Gather attribute data -------------------------------------------
+        # Base attributes: try player.base_attributes or player.get_base_attribute
+        base_attrs = getattr(player, "base_attributes", None) or {}
+        get_base_attr = getattr(player, "get_base_attribute", None)
+
+        # Race/subrace/class modifiers: try to read from objects if present
+        race_mods = self._collect_attr_mods_from_source(getattr(player, "race", None))
+        subrace_mods = self._collect_attr_mods_from_source(getattr(player, "subrace", None))
+        class_mods = self._collect_attr_mods_from_source(getattr(player, "class_obj", None))  # optional
+
+        # Equipment and active effects modifiers
+        equip_mods = self._collect_attr_mods_from_equipment(getattr(player, "equipment", None))
+        active_mods = getattr(player, "active_attribute_modifiers", {}) or {}
+
+        # For each stat, compute base, modifiers, total, proficiency
+        for stat in self.STAT_ORDER:
+            # Base value: prefer explicit getter, else base_attrs, else 8 default
+            if callable(get_base_attr):
+                try:
+                    base_val = int(get_base_attr(stat))
+                except Exception:
+                    base_val = int(base_attrs.get(stat, 8))
+            else:
+                base_val = int(base_attrs.get(stat, 8))
+
+            # Add race/subrace/class additive modifiers (these are considered part of "base" for display)
+            race_add = int(race_mods.get(stat, 0))
+            subrace_add = int(subrace_mods.get(stat, 0))
+            class_add = int(class_mods.get(stat, 0))
+            composed_base = base_val + race_add + subrace_add + class_add
+
+            # Current modifiers (equipment + active effects)
+            equip_add = int(equip_mods.get(stat, 0))
+            active_add = int(active_mods.get(stat, 0))
+            current_modifiers = equip_add + active_add
+
+            total_current = composed_base + current_modifiers
+
+            # Proficiency: try actor method or dict, else fallback compute
+            prof = self._resolve_proficiency(player, stat, total_current)
+
+            # Colors: negative modifiers in red, prof <=0 in gray
+            mod_color = color.menu_text
+            if current_modifiers < 0:
+                mod_color = color.red
+            prof_color = color.menu_text
+            if prof <= 0:
+                prof_color = color.gray
+
+            # Render row
+            label = f"{self.STAT_FULLNAME.get(stat, stat)} ({stat})"
+            console.print(stats_x, stats_y, label.ljust(col_widths[0]), fg=color.menu_text)
+            console.print(stats_x + col_widths[0], stats_y, f"{composed_base}".rjust(col_widths[1]), fg=color.menu_text)
+            # show modifier with sign
+            mod_str = f"{current_modifiers:+d}"
+            console.print(stats_x + col_widths[0] + col_widths[1], stats_y, mod_str.rjust(col_widths[2]), fg=mod_color)
+            console.print(stats_x + col_widths[0] + col_widths[1] + col_widths[2], stats_y, f"{total_current}".rjust(col_widths[3]), fg=color.menu_text)
+            console.print(stats_x + col_widths[0] + col_widths[1] + col_widths[2] + col_widths[3], stats_y, f"{prof}".rjust(col_widths[4]), fg=prof_color)
+            stats_y += 1
+
+        # --- Tags and descriptions -------------------------------------------
+        tags_x = stats_x
+        tags_y = stats_y + 1
+        console.print(tags_x, tags_y, "Tags:", fg=color.menu_title)
+        tags_y += 1
+
+        # Use the engine's tag repository (loaded from data/tags.json)
+        tag_defs = getattr(self.engine, "tag_defs", {}) or {}
+        player_tags = getattr(player, "tags", []) or []
+
+        if not player_tags:
+            console.print(tags_x, tags_y, "(none)", fg=color.menu_text)
+            tags_y += 1
+        else:
+            for t in player_tags:
+                info = tag_defs.get(t)
+                name = info["name"] if info else t
+                desc = info["description"] if info else "(no description)"
+                console.print(tags_x, tags_y, f"{name}: {desc}", fg=color.menu_text)
+                tags_y += 1
+
+
+        # Done
+
+    # ----------------- Helper methods ---------------------------------------
+
+    def _resolve_name(self, obj: Optional[object], fallback_id: Optional[str]) -> str:
+        """
+        Resolve a human name for race/subrace/class objects or fallback id strings.
+        Accepts dicts or objects with .name or .get('name').
+        """
+        if obj is None:
+            return fallback_id or ""
+        if isinstance(obj, dict):
+            return obj.get("name", fallback_id or "")
+        return getattr(obj, "name", fallback_id or "")
+
+    def _collect_attr_mods_from_source(self, src: Optional[object]) -> Dict[str, int]:
+        """
+        Read attribute modifiers from a source object (race, subrace, class).
+        Accepts dicts with 'attributes' or objects with .attributes.
+        Returns a dict mapping stat -> additive int.
+        """
+        if not src:
+            return {}
+        if isinstance(src, dict):
+            return {k: int(v) for k, v in (src.get("attributes", {}) or {}).items()}
+        return getattr(src, "attributes", {}) or {}
+
+    def _collect_attr_mods_from_equipment(self, equipment) -> Dict[str, int]:
+        """
+        Sum attribute modifiers provided by equipped items.
+        Looks for equippable component with properties like 'power_bonus' etc.
+        Also checks item.properties for stat modifiers under 'modifiers' key.
+        """
+        out: Dict[str, int] = {}
+        if not equipment:
+            return out
+
+        # equipment.slots is expected to be a mapping slot -> Item
+        slots = getattr(equipment, "slots", None) or {}
+        for item in set(slots.values()):
+            if not item:
+                continue
+            # 1) equippable component numeric bonuses (power/defense) are not per-stat;
+            #    but items may include properties.modifiers = {"DEX": -1, ...}
+            props = getattr(item, "properties", {}) or {}
+            mods = props.get("modifiers", {}) or {}
+            for k, v in mods.items():
+                try:
+                    out[k] = out.get(k, 0) + int(v)
+                except Exception:
+                    pass
+
+            # 2) Some items may expose equippable.stat_mods or similar
+            eq = getattr(item, "equippable", None)
+            if eq:
+                stat_mods = getattr(eq, "stat_mods", None) or getattr(eq, "modifiers", None) or {}
+                if isinstance(stat_mods, dict):
+                    for k, v in stat_mods.items():
+                        try:
+                            out[k] = out.get(k, 0) + int(v)
+                        except Exception:
+                            pass
+
+        return out
+
+    def _resolve_proficiency(self, player, stat: str, total_current: int) -> int:
+        """
+        Resolve proficiency for a stat. Prefer existing actor methods/fields:
+          - player.get_proficiency(stat)
+          - player.proficiencies dict
+        Fallback: compute a simple derived proficiency so UI shows something useful.
+        The fallback formula is intentionally conservative and yields non-negative values.
+        """
+        # 1) method
+        get_prof = getattr(player, "get_proficiency", None)
+        if callable(get_prof):
+            try:
+                return int(get_prof(stat))
+            except Exception:
+                pass
+
+        # 2) dict
+        profs = getattr(player, "proficiencies", None) or {}
+        if isinstance(profs, dict) and stat in profs:
+            try:
+                return int(profs[stat])
+            except Exception:
+                pass
+
+        # 3) fallback compute: map total_current into a small proficiency number
+        #    This is a conservative fallback: higher total -> higher proficiency.
+        #    Formula: floor((total_current - 8) / 4), min 0
+        try:
+            p = (int(total_current) - 8) // 4
+            return max(0, int(p))
+        except Exception:
+            return 0
 
 
 class LevelUpEventHandler(AskUserEventHandler):
@@ -1355,6 +1576,211 @@ class MainGameEventHandler(EventHandler):
 
         # No valid key was pressed
         return action
+
+
+class RaceSelectHandler(AskUserEventHandler):
+    PADDING_X = 2
+    PADDING_Y = 1
+    TOP_MARGIN = 2
+    DESC_GAP = 2  # gap between selection box and description box
+
+    def __init__(self, engine, races: List[object], finish_callback: Callable[[object], object]):
+        super().__init__(engine)
+        self.engine = engine
+        self.races = races  # list of Race dataclass instances
+        self.highlight_index = 0 if races else None
+        self.finish_callback = finish_callback
+
+        # Phase: "race" first, then "subrace"
+        self.phase = "race"
+        self.selected_race_index: Optional[int] = None
+
+    def on_render(self, console: tcod.Console) -> None:
+        
+        def format_attributes_colored(console, x, y, attrs: dict):
+            """
+            Print attributes with color coding:
+            Positive = green
+            Negative = red
+            Zero = white
+            """
+            offset = 0
+            for k, v in attrs.items():
+                sign = "+" if v >= 0 else ""
+                text = f"{k} {sign}{v}"
+
+                if v > 0:
+                    fg = color.green
+                elif v < 0:
+                    fg = color.red
+                else:
+                    fg = (200, 200, 200)
+
+                console.print(x + offset, y, text, fg=fg)
+                offset += len(text) + 2  # spacing between stats
+
+    
+        if not self.races:
+            console.print(1, 1, "No races available.", fg=(255, 0, 0))
+            return
+
+        # Determine current list based on phase
+        if self.phase == "race":
+            labels = [r.name for r in self.races]
+            title = "Choose Race"
+        else:
+            race = self.races[self.selected_race_index]
+            labels = [s.name for s in getattr(race, "subraces", [])]
+            title = "Choose Subrace"
+
+        if not labels:
+            labels = ["(None)"]
+
+        box_w = max(len(l) for l in labels) + self.PADDING_X * 2 + 4
+        box_h = len(labels) + self.PADDING_Y * 2 + 4
+
+        # Center horizontally, near top with margin
+        x = max(0, (console.width - box_w) // 2)
+        y = self.TOP_MARGIN
+
+        # Draw selection frame
+        console.draw_frame(
+            x=x,
+            y=y,
+            width=box_w,
+            height=box_h,
+            title=title,
+            clear=True,
+            fg=(255, 255, 255),
+            bg=(0, 0, 0),
+        )
+
+        # Draw options
+        for i, label in enumerate(labels):
+            row_x = x + 2
+            row_y = y + self.PADDING_Y + i + 1
+            is_high = (self.highlight_index == i)
+            bg = (50, 50, 150) if is_high else (0, 0, 0)
+            key_char = chr(ord("a") + i)
+            console.print(row_x, row_y, f"({key_char}) {label}", fg=(255, 255, 255), bg=bg)
+
+        # Description box below
+        desc_x = 2 #2 tile padding left and right
+        desc_y = y + box_h + self.DESC_GAP #top padding
+        desc_w = console.width - 4 #-4 for the two-tile padding on each side.
+        desc_h = 10  # enough for name + description + stats
+
+        console.draw_frame(
+            x=desc_x,
+            y=desc_y,
+            width=desc_w,
+            height=desc_h,
+            title="Description",
+            clear=False,
+            fg=(255, 255, 255),
+            bg=(0, 0, 0),
+        )
+
+        # Fill description based on phase + highlight
+        if self.phase == "race":
+            race = self.races[self.highlight_index]
+            console.print(desc_x + 2, desc_y + 1, race.name, fg=(200, 200, 255))
+            console.print(desc_x + 2, desc_y + 2, race.description, fg=(180, 180, 180))
+            
+            if hasattr(race, "attributes"):
+                format_attributes_colored(console, desc_x + 2, desc_y + 3, race.attributes)
+        else:
+            race = self.races[self.selected_race_index]
+            subraces = getattr(race, "subraces", [])
+            if subraces:
+                sub = subraces[self.highlight_index]
+                console.print(desc_x + 2, desc_y + 1, sub.name, fg=(200, 200, 255))
+                console.print(desc_x + 2, desc_y + 2, sub.description, fg=(180, 180, 180))    
+                
+                if hasattr(sub, "attributes"):
+                    format_attributes_colored(console, desc_x + 2, desc_y + 3, sub.attributes)
+
+    def ev_keydown(self, event: tcod.event.KeyDown):
+        from setup_game import MainMenu
+
+        key = event.sym
+
+        # Current list length
+        if self.phase == "race":
+            n = len(self.races)
+        else:
+            race = self.races[self.selected_race_index]
+            n = len(getattr(race, "subraces", []))
+
+        # Letter keys: map ONLY to current list
+        if tcod.event.K_a <= key <= tcod.event.K_z:
+            idx = key - tcod.event.K_a
+            if 0 <= idx < n:
+                self.highlight_index = idx
+            return None
+
+        # Arrow navigation within current list
+        if key == tcod.event.K_UP:
+            if self.highlight_index is None:
+                self.highlight_index = 0
+            else:
+                self.highlight_index = max(0, self.highlight_index - 1)
+            return None
+
+        if key == tcod.event.K_DOWN:
+            if self.highlight_index is None:
+                self.highlight_index = 0
+            else:
+                self.highlight_index = min(n - 1, self.highlight_index + 1)
+            return None
+
+        # Enter: advance phase or confirm
+        if key == tcod.event.K_RETURN:
+            if self.phase == "race":
+                # Lock in race, move to subrace phase (if any)
+                self.selected_race_index = self.highlight_index
+                race = self.races[self.selected_race_index]
+                subraces = getattr(race, "subraces", [])
+                if subraces:
+                    self.phase = "subrace"
+                    self.highlight_index = 0
+                    return None
+                else:
+                    # No subraces: confirm with sub_idx=None
+                    return self._confirm_selection(self.selected_race_index, None)
+            else:
+                # Subrace phase: confirm with selected subrace
+                return self._confirm_selection(self.selected_race_index, self.highlight_index)
+
+        # Escape: back to main menu
+        if key == tcod.event.K_ESCAPE:
+            return MainMenu()
+
+        return None
+
+    def _confirm_selection(self, race_idx: int, sub_idx: Optional[int]):
+        from input_handlers import PopupMessage, MainGameEventHandler
+
+        race = self.races[race_idx]
+        builder = getattr(self.engine, "creation", None)
+        if builder is None:
+            from character_builder import CharacterBuilder
+            self.engine.creation = CharacterBuilder()
+            builder = self.engine.creation
+
+        builder.race_id = race.id
+        if sub_idx is not None:
+            sub = race.subraces[sub_idx]
+            builder.subrace_id = sub.id
+        else:
+            builder.subrace_id = None
+
+        try:
+            self.finish_callback(self.engine)
+        except Exception as exc:
+            return PopupMessage(self, f"Failed to finish creation:\n{exc}")
+
+        return MainGameEventHandler(self.engine)
 
 
 class GameOverEventHandler(EventHandler):

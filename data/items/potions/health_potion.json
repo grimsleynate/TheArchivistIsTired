@@ -8,7 +8,7 @@
   "icon": "health_potion.png",
   "description": "Recovers some health and stitches up small wounds, erasing proof of your many poor decisions.",
   "rarity": "common",
-  "stack_max": 99,
+  "max_stack": 99,
   "components": {
     "consumable": {
       "class": "HealingConsumable",

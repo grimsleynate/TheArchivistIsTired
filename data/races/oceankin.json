@@ -1,0 +1,27 @@
+{
+  "id": "oceankin",
+  "name": "Oceankin",
+  "description": "A marine humanoid people adapted to life in and near the sea.",
+  "tags": ["aquatic", "amphibious"],
+  "attributes": { "STR": 0, "DEX": 1, "CON": 1, "INT": 0, "WIS": 0, "CHA": -4 },
+  "starting_equipment": ["item.tide_knife"],
+  "abilities": [],
+  "subraces": [
+    {
+      "id": "sphyrna",
+      "name": "Sphyrna",
+      "description": "Smooth hammerhead inspired; wide sensory field and nimble.",
+      "attributes": { "DEX": 2, "WIS": 1 },
+      "starting_equipment": [],
+      "abilities": [""]
+    },
+    {
+      "id": "karcharos",
+      "name": "Karcharos",
+      "description": "Great white inspired; powerful and fearsome.",
+      "attributes": { "STR": 2, "CON": 1 },
+      "starting_equipment": [],
+      "abilities": []
+    }
+  ]
+}

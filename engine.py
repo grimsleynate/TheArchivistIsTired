@@ -26,6 +26,8 @@ class Engine:
         self.player = player
         self.data_repo = None
         self.factory = None
+        self.race_catalog = None
+        self.creation = None
 
     def handle_enemy_turns(self) -> None:
         for entity in set(self.game_map.actors) - {self.player}:

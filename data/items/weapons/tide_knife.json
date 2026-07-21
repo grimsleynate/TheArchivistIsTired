@@ -1,0 +1,25 @@
+{
+  "id": "item.tide_knife",
+  "name": "Tide Knife",
+  "char": "/",
+  "color": [100, 180, 220],
+  "description": "Seems to me that's a knife forged for coastal hunters. It's corrosion-resistant and bears a leather grip for wet hands.",
+  "max_stack": 99,
+  "tags": ["weapon", "melee", "short blade", "dagger", "oceanic", "starting_item"],
+  "components": {
+    "equippable": {
+      "module": "components.equippable",
+      "class": "Equippable",
+      "args": {
+        "allowed_slots": ["main_hand", "off_hand"],
+        "power_bonus": 1,
+        "defense_bonus": 0
+      }
+    }
+  },
+  "properties": {
+    "damage": "1d4",
+    "weight": 1.0,
+    "special": "corrosion_resistant"
+  }
+}

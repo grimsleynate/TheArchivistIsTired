@@ -1,0 +1,14 @@
+{
+  "tags": [
+    {
+      "id": "aquatic",
+      "name": "Aquatic",
+      "description": "Adapted to life in water; swim freely and move 50% faster in water."
+    },
+    {
+      "id": "amphibious",
+      "name": "Amphibious",
+      "description": "Can survive in and out of water; requires periodic wetting or takes damage."
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "id": "item.coral_trident",
+  "name": "Coral Trident",
+  "char": "/",
+  "color": [120, 180, 200],
+  "description": "A long trident grown and forged from reef coral and tempered bone. Heavy and balanced for sweeping strikes along the surf.",
+  "max_stack": 99,
+  "tags": ["weapon", "melee", "polearm", "two-handed", "oceanic"],
+  "components": {
+    "equippable": {
+      "module": "components.equippable",
+      "class": "Equippable",
+      "args": {
+        "required_slots": ["main_hand", "off_hand"],
+        "power_bonus": 3,
+        "defense_bonus": 1,
+        "two_handed": true
+      }
+    }
+  },
+  "properties": {
+    "damage": "1d8",
+    "weight": 4.0,
+    "special": "coral_encrusted"
+  }
+}

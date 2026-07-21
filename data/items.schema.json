@@ -1,0 +1,43 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Game Item",
+  "type": "object",
+  "required": ["id", "name", "char", "color"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^[a-z0-9_.-]+$" },
+    "name": { "type": "string" },
+    "char": { "type": "string", "minLength": 1, "maxLength": 1 },
+    "color": {
+      "type": "array",
+      "items": { "type": "integer", "minimum": 0, "maximum": 255 },
+      "minItems": 3,
+      "maxItems": 3
+    },
+    "description": { "type": "string" },
+    "max_stack": { "type": "integer", "minimum": 1, "default": 1 },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string" },
+      "default": []
+    },
+    "components": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["module", "class"],
+        "properties": {
+          "module": { "type": "string" },
+          "class": { "type": "string" },
+          "args": { "type": "object" }
+        }
+      },
+      "default": {}
+    },
+    "properties": {
+      "type": "object",
+      "description": "Optional game-specific properties (damage, armor, reach, etc.)",
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}

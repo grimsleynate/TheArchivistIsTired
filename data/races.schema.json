@@ -1,0 +1,59 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Race",
+  "type": "object",
+  "required": ["id", "name", "description", "starting_equipment"],
+  "properties": {
+    "id": { "type": "string" },
+    "name": { "type": "string" },
+    "description": { "type": "string" },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string" },
+      "default": []
+    },
+    "attributes": {
+      "type": "object",
+      "additionalProperties": { "type": "integer" },
+      "default": {}
+    },
+    "starting_equipment": {
+      "type": "array",
+      "items": { "type": "string" },
+      "default": []
+    },
+    "abilities": {
+      "type": "array",
+      "items": { "type": "string" },
+      "default": []
+    },
+    "subraces": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "starting_equipment"],
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "attributes": {
+            "type": "object",
+            "additionalProperties": { "type": "integer" },
+            "default": {}
+          },
+          "starting_equipment": {
+            "type": "array",
+            "items": { "type": "string" },
+            "default": []
+          },
+          "abilities": {
+            "type": "array",
+            "items": { "type": "string" },
+            "default": []
+          }
+        }
+      },
+      "default": []
+    }
+  }
+}

@@ -2,23 +2,19 @@
   "id": "item.dagger",
   "name": "Dagger",
   "char": "/",
-  "color": [80, 255, 80],
-  "type": "weapon",
-  "subtype": "dagger",
-  "icon": "crude_dagger.png",
-  "description": "A short, sharp blade; barely capable of cutting through your ennui.",
-  "rarity": "common",
-  "stack_max": 99,
+  "color": [200, 200, 200],
+  "description": "A short, sharp blade. Light and quick.",
+  "max_stack": 1,
+  "tags": ["weapon", "light", "melee", "short blade", "dagger"],
   "components": {
     "equippable": {
-      "class": "Dagger",
       "module": "components.equippable",
-      "args": {}
+      "class": "Equippable",
+      "args": { "slot": "hand", "power_bonus": 1, "defense_bonus": 0 }
     }
   },
-  "spawn": {
-    "min_depth": 0,
-    "max_depth": 10,
-    "weight": 10
+  "properties": {
+    "damage": "1d4",
+    "weight": 1.0
   }
 }

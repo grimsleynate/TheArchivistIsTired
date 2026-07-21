@@ -1,12 +1,14 @@
 """Handle the loading and initialization of game sessions."""
 from __future__ import annotations
 
-import copy
 import lzma
 import pickle
 import traceback
 from typing import Optional
 
+from data.tag_repository import TagRepository
+from races import load_all_races
+from character_builder import CharacterBuilder
 from data_loader import DataRepository
 from entity_factory import EntityFactory
 from map_loader import load_map
@@ -22,58 +24,73 @@ import input_handlers
 background_image = tcod.image.load("menu_background.png")[:, :, :3]
 
 
-def new_game() -> Engine:
-    """Return a brand new game session as an Engine instance."""
-    map_width = 80
-    map_height = 43
-
-    room_max_size = 10
-    room_min_size = 6
-    max_rooms = 30
-
+def prepare_new_game_engine() -> Engine:
+    """
+    Prepare an Engine instance for character creation.
+    This sets up data repositories, the factory, and loads race data,
+    but does NOT create the player or generate the map yet.
+    """
     engine = Engine(player=None)
-    
+
+    # Data repository and factory (same as before)
     repo = DataRepository("data/actors", "data/items")
+    engine.tag_repo = TagRepository("data/tags.json")
     engine.factory = EntityFactory(repo, engine)
-    
-    player = engine.factory.create_actor("actor.player")
+
+    # Load races for character creation UI
+    engine.race_catalog = load_all_races("data/races")
+
+    # Attach an empty CharacterBuilder to hold choices during creation
+    engine.creation = CharacterBuilder()
+
+    # Message log can still be used during creation
+    engine.message_log.add_message("Character creation started.", color.menu_text)
+
+    return engine
+
+
+def finish_new_game(engine: Engine) -> Engine:
+    """
+    After character creation completes, create the player from engine.creation,
+    then generate the world and spawn them into the map.
+    """
+    # Create the player from the builder using your factory helper
+    player = engine.factory.create_actor_from_builder(engine.creation)
+    if player is None:
+        raise RuntimeError("finish_new_game: factory.create_actor_from_builder returned None")
     engine.player = player
 
-    """Generating a custom dungeon from txt_path, filled in with entities defined at json_path"""
+    # Now build the world / map (player exists so load_map can place it)
     txt_path = "maps/test_dungeon.txt"
     json_path = "maps/test_dungeon.json"
-
     engine.game_map = load_map(engine, txt_path, json_path)
+
     engine.game_world = GameWorld(
         engine=engine,
-        max_rooms=0,  # not used for overworld
+        max_rooms=0,
         room_min_size=0,
         room_max_size=0,
         map_width=engine.game_map.width,
         map_height=engine.game_map.height,
     )
-    
-    """Generating a ProcGen dungeon"""
-    # engine.game_world = GameWorld(
-        
-    #     engine=engine,
-    #     max_rooms=max_rooms,
-    #     room_min_size=room_min_size,
-    #     room_max_size=room_max_size,
-    #     map_width=map_width,
-    #     map_height=map_height,
-    # )
-    # engine.game_world.generate_floor()
-    
-    engine.game_map.entities.add(player)
-    player.parent = engine.game_map
+
+    # Ensure player is registered with the map
+    if player.parent is not engine.game_map:
+        try:
+            engine.game_map.entities.add(player)
+        except Exception:
+            pass
+        player.parent = engine.game_map
+
     engine.update_fov()
 
     engine.message_log.add_message(
-        "The Archivist looks up from endless shelves of war. \nHe welcomes you, tired that history keeps repeating its jokes.", color.welcome_text
+        "The world is ready. Press Enter to begin.", color.welcome_text
     )
 
     return engine
+
+
 
 
 def load_game(filename: str) -> Engine:
@@ -134,6 +151,14 @@ class MainMenu(input_handlers.BaseEventHandler):
                 traceback.print_exc()  # Print to stderr.
                 return input_handlers.PopupMessage(self, f"Failed to load save:\n{exc}")
         elif event.sym == tcod.event.K_n:
-            return input_handlers.MainGameEventHandler(new_game())
+            try:
+                engine = prepare_new_game_engine()
+                # Pass the list of Race objects and the finish callback to the handler
+                races = list(engine.race_catalog.values())
+                return input_handlers.RaceSelectHandler(engine, races, finish_callback=finish_new_game)
+            except Exception as exc:
+                traceback.print_exc()
+                return input_handlers.PopupMessage(self, f"Failed to start new game:\n{exc}")
+
 
         return None

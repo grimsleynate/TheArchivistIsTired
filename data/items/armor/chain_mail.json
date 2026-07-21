@@ -8,7 +8,7 @@
   "icon": "chain_mail.png",
   "description": "Rusted and covered with rivets, this chainmail has seen better days. Unfortunately, so will you thanks to the protection it affords.",
   "rarity": "common",
-  "stack_max": 99,
+  "max_stack": 99,
   "components": {
     "equippable": {
       "class": "ChainMail",
